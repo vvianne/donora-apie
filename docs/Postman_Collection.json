@@ -1,0 +1,54 @@
+{
+  "info": {
+    "name": "Donora API Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"user\", \"password\": \"pass\"}"
+            },
+            "url": "http://localhost:5000/login"
+          }
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"newuser\", \"password\": \"newpass\", \"role\": \"DONOR\"}"
+            },
+            "url": "http://localhost:5000/register"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Hospital",
+      "item": [
+        {
+          "name": "Create Request",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"hospital_id\": 1, \"blood_type\": \"A+\"}"
+            },
+            "url": "http://localhost:5000/request"
+          }
+        }
+      ]
+    }
+  ]
+}
