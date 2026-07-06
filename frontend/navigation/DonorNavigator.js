@@ -5,6 +5,8 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
 import DonorDashboard from "../screens/donor/DonorDashboard";
 import NearbyScreen from "../screens/donor/NearbyScreen";
+import HistoryScreen from "../screens/donor/HistoryScreen";
+import ProfileScreen from "../screens/ProfileScreen";
 import BottomNav from "../BottomNav";
 import { COLORS, SPACING } from "../theme";
 
@@ -12,17 +14,6 @@ const Tab = createBottomTabNavigator();
 
 // Simple placeholders so the tab bar has somewhere to go.
 // Swap these for your real History and Profile screens whenever they're ready.
-const HistoryScreen = () => (
-  <SafeAreaView style={styles.placeholder}>
-    <Text style={styles.placeholderText}>History screen — coming soon</Text>
-  </SafeAreaView>
-);
-
-const ProfileScreen = () => (
-  <SafeAreaView style={styles.placeholder}>
-    <Text style={styles.placeholderText}>Profile screen — coming soon</Text>
-  </SafeAreaView>
-);
 
 export default function DonorNavigator() {
   return (
