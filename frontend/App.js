@@ -4,7 +4,7 @@ import { createStackNavigator } from "@react-navigation/stack";
 import LoginScreen from "./screens/auth/LoginScreen";
 import RegisterScreen from "./screens/auth/RegisterScreen";
 import DonorDashboard from "./screens/donor/DonorDashboard";
-import HospitalDashboard from "./screens/HospitalDashboard";
+import HospitalDashboard from "./screens/hospital/HospitalDashboard";
 import BloodBankDashboard from "./screens/BloodBankDashboard";
 import TransportationDashboard from "./screens/TransportationDashboard";
 import InventoryScreen from "./screens/InventoryScreen";
@@ -29,7 +29,11 @@ const App = () => {
           component={DonorNavigator}
           options={{ headerShown: false }}
         />
-        <Stack.Screen name="HospitalDashboard" component={HospitalDashboard} />
+        <Stack.Screen
+          name="HospitalDashboard"
+          component={HospitalDashboard}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="BloodBankDashboard"
           component={BloodBankDashboard}
@@ -47,14 +51,3 @@ const App = () => {
 };
 
 export default App;
-
-// import React from "react";
-// import { View, Text } from "react-native";
-
-// export default function LoginScreen() {
-//   return (
-//     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-//       <Text>LOGIN SCREEN</Text>
-//     </View>
-//   );
-// }

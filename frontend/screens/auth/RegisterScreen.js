@@ -8,6 +8,8 @@ const RegisterScreen = ({ navigation }) => {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
   const [error, setError] = useState("");
+  const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
 
   const handleRegister = async () => {
     try {
@@ -15,6 +17,8 @@ const RegisterScreen = ({ navigation }) => {
         username,
         password,
         role,
+        name,
+        location,
       });
       if (response.data.success) {
         navigation.navigate("Login");
@@ -47,6 +51,23 @@ const RegisterScreen = ({ navigation }) => {
         <Picker.Item label="Blood Bank" value="blood_bank" />
         <Picker.Item label="Transportation" value="transportation" />
       </Picker>
+      {(role === "hospital" || role === "blood_bank") && (
+        <>
+          <TextInput
+            placeholder={
+              role === "hospital" ? "Hospital Name" : "Blood Bank Name"
+            }
+            value={name}
+            onChangeText={setName}
+          />
+
+          <TextInput
+            placeholder="Location"
+            value={location}
+            onChangeText={setLocation}
+          />
+        </>
+      )}
       <Button title="Register" onPress={handleRegister} />
       {error ? <Text>{error}</Text> : null}
     </View>

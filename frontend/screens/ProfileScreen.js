@@ -1,22 +1,4 @@
-// ProfileScreen.js
-// ONE shared Profile screen for every role. Only the top "role card" changes;
-// Personal Information, Settings, Support, and Logout stay identical for everyone.
-//
-//   ProfileScreen
-//     -> Role Card (Donor / Hospital / Blood Bank / Transportation)
-//     -> Personal Information
-//     -> Account Settings
-//     -> Support
-//     -> Logout
-//
-// In the real app, `role` comes from your auth/session state (e.g. after login,
-// store role = "donor" | "hospital" | "bloodbank" | "transportation" in context
-// or AsyncStorage, then read it here). For now it defaults to "donor" and has a
-// small dev-only switcher up top so all four teammates can preview their own
-// role card without needing real login yet — just delete the switcher block
-// once auth is wired up.
-
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -72,13 +54,6 @@ const COMMON_INFO = {
   phone: "+62 812 3456 7890",
   memberSince: "2024",
 };
-
-const ROLES = [
-  { id: "donor", label: "Donor" },
-  { id: "hospital", label: "Hospital" },
-  { id: "bloodbank", label: "Blood Bank" },
-  { id: "transportation", label: "Transport" },
-];
 
 // ============================================
 // ROLE CARDS — the only part that changes per role
@@ -297,9 +272,7 @@ const SettingsRow = ({ icon, label, danger }) => (
 // COMPONENT
 // ============================================
 const ProfileScreen = () => {
-  // Dev-only: lets you preview all four role cards without real auth yet.
-  // Replace with the actual logged-in role from your auth/session state.
-  const [role, setRole] = useState("donor");
+  const role = "donor";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -312,37 +285,6 @@ const ProfileScreen = () => {
       >
         {/* ============== HEADER ============== */}
         <Text style={styles.pageTitle}>Profile</Text>
-
-        {/* ============== DEV ROLE SWITCHER (remove once auth is wired up) ============== */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.roleSwitcherRow}
-        >
-          {ROLES.map((item) => {
-            const isActive = role === item.id;
-            return (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.rolePillButton,
-                  isActive && styles.rolePillButtonActive,
-                ]}
-                onPress={() => setRole(item.id)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.rolePillButtonText,
-                    isActive && styles.rolePillButtonTextActive,
-                  ]}
-                >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
 
         {/* ============== ROLE-SPECIFIC CARD ============== */}
         <RoleCard role={role} />
@@ -435,37 +377,6 @@ const styles = StyleSheet.create({
     fontSize: 30,
     color: COLORS.text,
     marginBottom: 16,
-  },
-
-  // ---------- DEV ROLE SWITCHER ----------
-  roleSwitcherRow: {
-    gap: 10,
-    paddingBottom: 4,
-    marginBottom: SPACING.sectionGap,
-  },
-
-  rolePillButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 20,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-  rolePillButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-
-  rolePillButtonText: {
-    fontFamily: "Poppins_500Medium",
-    fontSize: 12,
-    color: COLORS.subtitle,
-  },
-
-  rolePillButtonTextActive: {
-    color: "white",
   },
 
   // ---------- ROLE CARD (shared shell for all 4 variants) ----------
