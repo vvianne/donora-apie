@@ -114,6 +114,220 @@ Donora/
 
 ---
 
+## Database Diagram
+
+```
+                         +------------------+
+                         |      users       |
+                         +------------------+
+                         | id (PK)          |
+                         | username         |
+                         | password_hash    |
+                         | role             |
+                         +------------------+
+                                  |
+                                  |
+             (logical ownership by role)
+        -------------------+-------------------
+        |                                      |
+        |                                      |
++------------------+                +------------------+
+|    hospitals     |                |   blood_banks    |
++------------------+                +------------------+
+| id (PK)          |                | id (PK)          |
+| name             |                | name             |
+| location         |                | location         |
++------------------+                +------------------+
+        |                                      |
+        |                                      |
+        | 1                                    | 1
+        |                                      |
+        |                                      |
+        | *                                    | *
++----------------------+             +-----------------------+
+|   blood_requests     |             |   blood_inventory     |
++----------------------+             +-----------------------+
+| id (PK)              |             | id (PK)              |
+| hospital_id (FK) ----+------------>|                      |
+| blood_type           |             | blood_bank_id (FK) --+
+| status               |             | blood_type           |
++----------------------+             | quantity             |
+                                     +-----------------------+
+
+
+                 (future matching process)
+
++----------------------+
+| transportation       |
++----------------------+
+| ...                  |
++----------------------+
+```
+
+---
+
+## System Architecture
+
+The Donora application follows a client-server architecture, where the mobile application communicates with a RESTful API to manage blood donation services.
+
+```
+                           +----------------------+
+                           |      End User        |
+                           | (Mobile Application) |
+                           +----------+-----------+
+                                      |
+                                      |
+                                      v
+                     +----------------------------------+
+                     |      React Native Frontend       |
+                     |----------------------------------|
+                     | • Login                          |
+                     | • Register                       |
+                     | • Role-based Navigation          |
+                     | • Dashboard                      |
+                     | • Inventory                      |
+                     | • Blood Requests                 |
+                     | • Profile                        |
+                     +----------------+-----------------+
+                                      |
+                         HTTP Request / JSON + JWT
+                                      |
+                                      v
+                    +-----------------------------------+
+                    |         Flask REST API            |
+                    |-----------------------------------|
+                    | Authentication Controller         |
+                    | Hospital Controller               |
+                    | Blood Bank Controller             |
+                    | Donor Controller                  |
+                    | Transportation Controller         |
+                    +----------------+------------------+
+                                     |
+                               SQLAlchemy ORM
+                                     |
+                                     v
+                     +-------------------------------+
+                     |         MySQL Database         |
+                     |-------------------------------|
+                     | Users                         |
+                     | Hospitals                     |
+                     | Blood Banks                   |
+                     | Blood Inventory               |
+                     | Blood Requests                |
+                     +-------------------------------+
+```
+
+---
+
+## Frontend Navigation
+
+After a successful login, users are redirected to a dashboard based on their assigned role.
+
+```
+Login
+   │
+   ▼
+Check User Role
+   │
+   ├──────────────► Donor Dashboard
+   │                    │
+   │                    ├── Donation History
+   │                    ├── Profile
+   │                    └── Notifications
+   │
+   ├──────────────► Hospital Dashboard
+   │                    │
+   │                    ├── Request Summary
+   │                    ├── Create Request
+   │                    ├── Requests
+   │                    └── Profile
+   │
+   ├──────────────► Blood Bank Dashboard
+   │                    │
+   │                    ├── Inventory Summary
+   │                    ├── Inventory
+   │                    ├── Requests
+   │                    └── Profile
+   │
+   └──────────────► Transportation Dashboard
+                        │
+                        ├── Delivery Overview
+                        ├── Assigned Deliveries
+                        └── Profile
+```
+
+---
+
+## Request Flow
+
+```
+Hospital User
+      │
+      ▼
+Create Blood Request
+      │
+      ▼
+POST /request
+      │
+      ▼
+blood_requests table
+      │
+      ▼
+Blood Bank reviews the request
+      │
+      ▼
+Status Updated
+(Pending → Approved → Completed)
+```
+
+---
+
+## Inventory Flow
+
+```
+Blood Bank User
+       │
+       ▼
+Manage Inventory
+(Add / Update / Delete)
+       │
+       ▼
+POST /inventory
+PUT /inventory/{id}
+DELETE /inventory/{id}
+       │
+       ▼
+blood_inventory table
+       │
+       ▼
+Inventory displayed on Dashboard
+```
+
+---
+
+## Authentication Flow
+
+```
+User Login
+      │
+      ▼
+POST /login
+      │
+      ▼
+Validate Credentials
+      │
+      ▼
+Generate JWT Token
+      │
+      ▼
+Store Token (AsyncStorage)
+      │
+      ▼
+Access Protected API
+```
+
+---
+
 # First-Time Setup
 
 This section only needs to be completed once.
