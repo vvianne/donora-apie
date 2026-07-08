@@ -20,6 +20,16 @@ def create_request():
 
     return jsonify({'success': True, 'message': 'Request created successfully.'}), 201
 
+@hospital_bp.route('/request', methods=['GET'])
+@jwt_required()
+def view_all_requests():
+    requests = BloodRequest.query.all()
+
+    return jsonify({
+        'success': True,
+        'data': [req.serialize() for req in requests]
+    }), 200
+
 @hospital_bp.route('/request/<int:request_id>', methods=['GET'])
 @jwt_required()
 def view_request(request_id):
@@ -29,6 +39,7 @@ def view_request(request_id):
     return jsonify({'success': True, 'data': blood_request}), 200
 
 @hospital_bp.route('/request/<int:request_id>', methods=['PUT'])
+@jwt_required()
 def update_request(request_id):
     data = request.get_json()
     blood_request = BloodRequest.query.get(request_id)

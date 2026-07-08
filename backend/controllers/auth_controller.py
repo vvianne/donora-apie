@@ -41,12 +41,15 @@
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token
+from datetime import datetime, timedelta
 from database import db
 from models.user import User
 from models.hospital import Hospital
 from models.blood_bank import BloodBank
 
 auth_bp = Blueprint('auth', __name__)
+
+JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=1)
 
 ALLOWED_ROLES = [
     "donor",

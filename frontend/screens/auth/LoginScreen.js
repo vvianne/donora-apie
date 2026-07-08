@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from "react-native";
 import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState("");
@@ -35,13 +36,18 @@ const LoginScreen = ({ navigation }) => {
     setError("");
 
     try {
-      const response = await axios.post("http://localhost:5000/login", {
+      const response = await axios.post("http://10.172.122.32:5000/login", {
         username,
         password,
       });
 
-      if (response.data.success) {
+      console.log(response.data);
+
+      if (response.data.access_token) {
+        await AsyncStorage.setItem("access_token", response.data.access_token);
+
         const routeName = getDashboardRoute(response.data.role);
+
         navigation.reset({
           index: 0,
           routes: [{ name: routeName }],
