@@ -75,16 +75,17 @@ def register():
         }), 400
 
     if role not in ALLOWED_ROLES:
-        if role in ["hospital", "blood_bank"]:
-            if not name or not location:
-                return jsonify({
-                    "success": False,
-                    "message": "Name and location are required."
-                }), 400
         return jsonify({
             "success": False,
             "message": "Invalid role."
         }), 400
+
+    if role in ["hospital", "blood_bank"]:
+        if not name or not location:
+            return jsonify({
+                "success": False,
+                "message": "Name and location are required."
+            }), 400
     
     
 

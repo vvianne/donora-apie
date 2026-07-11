@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, TextInput, Button, Text } from "react-native";
-import axios from "axios";
+import api from "../../services/api";
 import { Picker } from "@react-native-picker/picker";
 
 const RegisterScreen = ({ navigation }) => {
@@ -13,7 +13,7 @@ const RegisterScreen = ({ navigation }) => {
 
   const handleRegister = async () => {
     try {
-      const response = await axios.post("http://localhost:5000/register", {
+      const response = await api.post("/auth/register", {
         username,
         password,
         role,
