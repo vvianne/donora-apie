@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
-import axios from "axios";
+import api from "../../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LoginScreen = ({ navigation }) => {
@@ -36,7 +36,7 @@ const LoginScreen = ({ navigation }) => {
     setError("");
 
     try {
-      const response = await axios.post("http://10.172.122.32:5000/login", {
+      const response = await api.post("/auth/login", {
         username,
         password,
       });
@@ -102,6 +102,7 @@ export default LoginScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    height: "100vh",
     justifyContent: "center",
     paddingHorizontal: 24,
     backgroundColor: "#fff",
