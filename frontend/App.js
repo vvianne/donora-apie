@@ -1,6 +1,11 @@
+if (typeof process === 'undefined') {
+  window.process = { env: { NODE_ENV: 'development' } };
+}
+import 'react-native-gesture-handler';
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useFonts } from "expo-font";
 import {
   Poppins_400Regular,
@@ -34,8 +39,9 @@ const App = () => {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Login">
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Login">
         <Stack.Screen
           name="Login"
           component={LoginScreen}
@@ -78,6 +84,7 @@ const App = () => {
         />
       </Stack.Navigator>
     </NavigationContainer>
+    </SafeAreaProvider>
   );
 };
 
