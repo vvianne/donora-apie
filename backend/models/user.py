@@ -11,7 +11,7 @@ class User(db.Model):
     role = Column(String(20), nullable=False) # 'DONOR', 'HOSPITAL', 'BLOOD_BANK', 'TRANSPORTER', 'ADMIN'
     blood_type = Column(String(10), nullable=True)
     available = Column(Integer, default=1) # 1=available, 0=not available
-    location = Column(String(255), nullable=True)
-    latitude = Column(Float, nullable=True)
-    longitude = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    # location = Column(String(255), nullable=True)
+    location_lat = db.Column(db.String(50))
+    location_lon = db.Column(db.String(50))
+    # created_at = Column(DateTime, default=datetime.utcnow)
