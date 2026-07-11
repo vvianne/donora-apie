@@ -1,14 +1,14 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
   Platform,
+  Modal,
 } from "react-native";
 
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -38,38 +38,84 @@ const DONOR = {
 
 const EMERGENCY = {
   active: true,
-  hospital: "RS Abdul Moeloek",
+  hospital: "Hospital 1",
   bloodType: "O+",
   distance: "2.1 km",
   time: "8 mins ago",
 };
 
 const QUICK_ACTIONS = [
-  { id: "1", label: "Find Blood Bank", icon: "hospital-building", lib: "mci" },
-  { id: "2", label: "Nearby Requests", icon: "map-marker-radius", lib: "mci" },
+  {
+    id: "1",
+    label: "Find Blood Bank",
+    icon: "hospital-building",
+    lib: "mci",
+    screen: "Nearby",
+  },
+  {
+    id: "2",
+    label: "Nearby Requests",
+    icon: "map-marker-radius",
+    lib: "mci",
+    screen: "Nearby",
+  },
   {
     id: "3",
     label: "Donation History",
     icon: "document-text-outline",
     lib: "ion",
+    screen: "History",
   },
-  { id: "4", label: "Profile", icon: "person-outline", lib: "ion" },
+  {
+    id: "4",
+    label: "Profile",
+    icon: "person-outline",
+    lib: "ion",
+    screen: "Profile",
+  },
 ];
 
 const ACHIEVEMENTS = [
-  { id: "1", label: "First Donation", icon: "🥉" },
-  { id: "2", label: "Life Saver", icon: "❤️" },
-  { id: "3", label: "Community Hero", icon: "⭐" },
-  { id: "4", label: "10 Donations", icon: "🏅" },
-  { id: "5", label: "Regular Donor", icon: "🎖" },
+  { id: "1", label: "First Donation", icon: "🥉", earned: true },
+  { id: "2", label: "Life Saver", icon: "❤️", earned: true },
+  { id: "3", label: "Community Hero", icon: "⭐", earned: true },
+  { id: "4", label: "10 Donations", icon: "🏅", earned: false },
+  { id: "5", label: "Regular Donor", icon: "🎖", earned: false },
 ];
+
+const HOSPITAL_COORDINATES = {
+  latitude: -6.2088,
+  longitude: 106.8456,
+};
+
+const calculateDistanceInKm = (lat1, lon1, lat2, lon2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const formatDistance = (distanceKm) => {
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)} m`;
+  }
+  return `${distanceKm.toFixed(1)} km`;
+};
 
 const ACTIVITIES = [
   {
     id: "1",
     icon: "water",
     title: "Blood Donation",
-    place: "PMI Lampung",
+    place: "Hospital 1",
     date: "12 June 2026",
     status: "Completed",
   },
@@ -77,7 +123,7 @@ const ACTIVITIES = [
     id: "2",
     icon: "alert-circle",
     title: "Responded to Emergency Request",
-    place: "RS Abdul Moeloek",
+    place: "Hospital 2",
     date: "Yesterday",
     status: "Completed",
   },
@@ -86,19 +132,170 @@ const ACTIVITIES = [
 // ============================================
 // COMPONENT
 // ============================================
-const DonorDashboard = () => {
+const DonorDashboard = ({ navigation }) => {
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
     Poppins_500Medium,
     Poppins_600SemiBold,
     Poppins_700Bold,
   });
+  const [showResponseModal, setShowResponseModal] = useState(false);
+  const [showAchievementsModal, setShowAchievementsModal] = useState(false);
+  const [responseSent, setResponseSent] = useState(false);
+  const [liveDistance, setLiveDistance] = useState(EMERGENCY.distance);
+  const [distanceMode, setDistanceMode] = useState("approx");
+
+  const handleRespond = () => {
+    setResponseSent(true);
+    setShowResponseModal(false);
+  };
+
+  useEffect(() => {
+    if (!responseSent) return undefined;
+
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      const onSuccess = (position) => {
+        const distanceKm = calculateDistanceInKm(
+          position.coords.latitude,
+          position.coords.longitude,
+          HOSPITAL_COORDINATES.latitude,
+          HOSPITAL_COORDINATES.longitude,
+        );
+        setLiveDistance(formatDistance(distanceKm));
+        setDistanceMode("live");
+      };
+
+      const onError = () => {
+        setLiveDistance(EMERGENCY.distance);
+        setDistanceMode("approx");
+      };
+
+      const watchId = navigator.geolocation.watchPosition(onSuccess, onError, {
+        enableHighAccuracy: true,
+        distanceFilter: 10,
+        timeout: 10000,
+        maximumAge: 10000,
+      });
+
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+
+    setLiveDistance(EMERGENCY.distance);
+    setDistanceMode("approx");
+    return undefined;
+  }, [responseSent]);
 
   if (!fontsLoaded) return null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+
+      <Modal
+        visible={showResponseModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowResponseModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Head to the hospital</Text>
+            <Text style={styles.modalText}>
+              Confirm that you are on your way to help with this urgent request.
+            </Text>
+
+            <View style={styles.mapPreviewBox}>
+              <View style={styles.mapPreviewGrid} />
+              <View style={styles.mapPinUser} />
+              <View style={styles.mapPinHospital} />
+              <Text style={styles.mapLabelUser}>You</Text>
+              <Text style={styles.mapLabelHospital}>{EMERGENCY.hospital}</Text>
+            </View>
+
+            <View style={styles.routeInfo}>
+              <Text style={styles.routeTitle}>{EMERGENCY.hospital}</Text>
+              <Text style={styles.routeSubtitle}>
+                Approx. {EMERGENCY.distance} away
+              </Text>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowResponseModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalConfirmButton}
+                onPress={handleRespond}
+              >
+                <Text style={styles.modalConfirmText}>Respond</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showAchievementsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAchievementsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.achievementsModalCard}>
+            <Text style={styles.modalTitle}>Achievements</Text>
+            <Text style={styles.modalText}>
+              Your progress and the badges still waiting for you.
+            </Text>
+
+            <ScrollView
+              style={styles.achievementModalScrollView}
+              contentContainerStyle={styles.achievementModalList}
+              showsVerticalScrollIndicator={false}
+            >
+              {ACHIEVEMENTS.map((item) => (
+                <View key={item.id} style={styles.achievementModalItem}>
+                  <View style={styles.achievementIconBadge}>
+                    <Text style={styles.achievementEmoji}>{item.icon}</Text>
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.achievementModalLabel}>
+                      {item.label}
+                    </Text>
+                    <Text style={styles.achievementModalStatus}>
+                      {item.earned ? "Unlocked" : "Locked"}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.achievementStatusPill,
+                      item.earned
+                        ? styles.achievementUnlocked
+                        : styles.achievementLocked,
+                    ]}
+                  >
+                    <Text style={styles.achievementStatusText}>
+                      {item.earned ? "Done" : "Next"}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalConfirmButton}
+              onPress={() => setShowAchievementsModal(false)}
+            >
+              <Text style={styles.modalConfirmText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <ScrollView
         style={styles.container}
@@ -125,24 +322,35 @@ const DonorDashboard = () => {
               <View style={styles.notifDot} />
             </TouchableOpacity>
 
-            <View style={styles.avatar}>
+            <TouchableOpacity
+              style={styles.avatar}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate("Profile")}
+            >
               <MaterialCommunityIcons name="account" size={26} color="white" />
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* ============== SEARCH ============== */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color={COLORS.subtitle} />
-          <TextInput
-            placeholder="Search hospital, blood bank..."
-            placeholderTextColor={COLORS.subtitle}
-            style={styles.searchInput}
-          />
-        </View>
-
         {/* ============== EMERGENCY HERO CARD ============== */}
-        {EMERGENCY.active ? (
+        {responseSent ? (
+          <View style={styles.responseSuccessCard}>
+            <Text style={styles.noEmergencyEmoji}>✅</Text>
+            <Text style={styles.noEmergencyTitle}>Thanks for helping</Text>
+            <Text style={styles.noEmergencySubtitle}>
+              You are about {liveDistance} from {EMERGENCY.hospital}. Your
+              response has been recorded and the hospital will contact you
+              shortly.
+            </Text>
+            {distanceMode === "live" ? (
+              <Text style={styles.liveDistanceHint}>Live distance updated</Text>
+            ) : (
+              <Text style={styles.liveDistanceHint}>
+                Live location unavailable, showing approximate distance
+              </Text>
+            )}
+          </View>
+        ) : EMERGENCY.active ? (
           <LinearGradient
             colors={[COLORS.primary, COLORS.primaryDark]}
             start={{ x: 0, y: 0 }}
@@ -182,6 +390,7 @@ const DonorDashboard = () => {
               <TouchableOpacity
                 style={styles.respondButton}
                 activeOpacity={0.85}
+                onPress={() => setShowResponseModal(true)}
               >
                 <Text style={styles.respondText}>Respond Now</Text>
               </TouchableOpacity>
@@ -249,6 +458,7 @@ const DonorDashboard = () => {
               key={action.id}
               style={styles.actionCard}
               activeOpacity={0.8}
+              onPress={() => navigation.navigate(action.screen)}
             >
               <View style={styles.iconWrapper}>
                 {action.lib === "mci" ? (
@@ -273,7 +483,7 @@ const DonorDashboard = () => {
         {/* ============== ACHIEVEMENTS ============== */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Achievements</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowAchievementsModal(true)}>
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
         </View>
@@ -415,27 +625,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // ---------- SEARCH ----------
-  searchContainer: {
-    marginTop: SPACING.sectionGap,
-    backgroundColor: COLORS.card,
-    borderRadius: SPACING.inputRadius,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-  searchInput: {
-    flex: 1,
-    fontFamily: "Poppins_400Regular",
-    fontSize: 14,
-    color: COLORS.text,
-  },
-
   // ---------- EMERGENCY HERO CARD ----------
   heroCard: {
     marginTop: SPACING.sectionGap,
@@ -541,6 +730,154 @@ const styles = StyleSheet.create({
     color: COLORS.primaryDark,
   },
 
+  // ---------- MODAL ----------
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+
+  modalCard: {
+    width: "100%",
+    backgroundColor: COLORS.card,
+    borderRadius: SPACING.cardRadius,
+    padding: 24,
+    alignItems: "center",
+  },
+
+  modalTitle: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 18,
+    color: COLORS.text,
+    textAlign: "center",
+  },
+
+  modalText: {
+    marginTop: 8,
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
+    color: COLORS.subtitle,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+
+  mapPreviewBox: {
+    marginTop: 16,
+    width: "100%",
+    height: 150,
+    borderRadius: 16,
+    backgroundColor: COLORS.secondary,
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  mapPreviewGrid: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#EAF7F0",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+  },
+
+  mapPinUser: {
+    position: "absolute",
+    top: 44,
+    left: 54,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    borderWidth: 3,
+    borderColor: "white",
+  },
+
+  mapPinHospital: {
+    position: "absolute",
+    bottom: 38,
+    right: 56,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.warning,
+    borderWidth: 3,
+    borderColor: "white",
+  },
+
+  mapLabelUser: {
+    position: "absolute",
+    top: 64,
+    left: 34,
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 11,
+    color: COLORS.text,
+  },
+
+  mapLabelHospital: {
+    position: "absolute",
+    bottom: 18,
+    right: 24,
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 11,
+    color: COLORS.text,
+  },
+
+  routeInfo: {
+    marginTop: 12,
+    alignItems: "center",
+  },
+
+  routeTitle: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
+    color: COLORS.text,
+  },
+
+  routeSubtitle: {
+    marginTop: 2,
+    fontFamily: "Poppins_400Regular",
+    fontSize: 12,
+    color: COLORS.subtitle,
+  },
+
+  modalActions: {
+    marginTop: 20,
+    flexDirection: "row",
+    width: "100%",
+    gap: 12,
+  },
+
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: COLORS.secondary,
+    paddingVertical: 12,
+    borderRadius: SPACING.buttonRadius,
+    alignItems: "center",
+  },
+
+  modalCancelText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 13,
+    color: COLORS.text,
+  },
+
+  modalConfirmButton: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    borderRadius: SPACING.buttonRadius,
+    alignItems: "center",
+  },
+
+  modalConfirmText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 13,
+    color: "white",
+  },
+
   // ---------- NO EMERGENCY STATE ----------
   noEmergencyCard: {
     marginTop: SPACING.sectionGap,
@@ -548,6 +885,21 @@ const styles = StyleSheet.create({
     borderRadius: SPACING.cardRadius,
     padding: SPACING.cardPadding + 4,
     alignItems: "center",
+  },
+
+  responseSuccessCard: {
+    marginTop: SPACING.sectionGap,
+    backgroundColor: "#ECFDF3",
+    borderRadius: SPACING.cardRadius,
+    padding: SPACING.cardPadding + 4,
+    alignItems: "center",
+  },
+
+  liveDistanceHint: {
+    marginTop: 8,
+    fontFamily: "Poppins_500Medium",
+    fontSize: 11,
+    color: COLORS.primary,
   },
 
   noEmergencyEmoji: {
@@ -568,6 +920,75 @@ const styles = StyleSheet.create({
     color: COLORS.subtitle,
     textAlign: "center",
     lineHeight: 19,
+  },
+
+  achievementsModalCard: {
+    width: "100%",
+    backgroundColor: COLORS.card,
+    borderRadius: SPACING.cardRadius,
+    padding: 24,
+    maxHeight: "80%",
+  },
+
+  achievementModalScrollView: {
+    marginTop: 16,
+    maxHeight: 320,
+  },
+
+  achievementModalList: {
+    gap: 12,
+    paddingBottom: 8,
+  },
+
+  achievementModalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.secondary,
+    borderRadius: 16,
+    padding: 12,
+    gap: 12,
+  },
+
+  achievementIconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.card,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  achievementModalLabel: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 13,
+    color: COLORS.text,
+  },
+
+  achievementModalStatus: {
+    marginTop: 2,
+    fontFamily: "Poppins_400Regular",
+    fontSize: 12,
+    color: COLORS.subtitle,
+  },
+
+  achievementStatusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+
+  achievementUnlocked: {
+    backgroundColor: "#ECFDF3",
+  },
+
+  achievementLocked: {
+    backgroundColor: "#FDECEC",
+  },
+
+  achievementStatusText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 11,
+    color: COLORS.text,
   },
 
   // ---------- DONOR CARD ----------

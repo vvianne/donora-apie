@@ -7,3 +7,11 @@ class BloodRequest(db.Model):
     hospital_id = Column(Integer, ForeignKey('hospitals.id'), nullable=False)
     blood_type = Column(String(10), nullable=False)
     status = Column(String(20), nullable=False)
+
+    def serialize(self):
+        return {
+            'id': self.id,
+            'hospital_id': self.hospital_id,
+            'blood_type': self.blood_type,
+            'status': self.status
+        }

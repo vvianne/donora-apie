@@ -21,6 +21,7 @@ def add_inventory():
     return jsonify({'success': True, 'message': 'Inventory added successfully.'}), 201
 
 @blood_bank_bp.route('/inventory/<int:inventory_id>', methods=['PUT'])
+@jwt_required()
 def update_inventory(inventory_id):
     data = request.get_json()
     inventory = BloodInventory.query.get(inventory_id)

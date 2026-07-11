@@ -1,53 +1,3 @@
-// import React, { useState } from "react";
-// import { View, TextInput, Button, Text } from "react-native";
-// import axios from "axios";
-
-// const LoginScreen = ({ navigation }) => {
-//   const [username, setUsername] = useState("");
-//   const [password, setPassword] = useState("");
-//   const [error, setError] = useState("");
-
-//   const handleLogin = async () => {
-//     try {
-//       const response = await axios.post("http://localhost:5000/login", {
-//         username,
-//         password,
-//       });
-//       if (response.data.success) {
-//         // Navigate to the appropriate dashboard based on user role
-//         navigation.navigate("DonorDashboard");
-//       }
-//       // } catch (err) {
-//       //   setError('Invalid credentials.');
-//       // }
-//     } catch (err) {
-//       console.log(err.response?.data);
-//       console.log(err.message);
-//       setError(err.response?.data?.message || err.message);
-//     }
-//   };
-
-//   return (
-//     <View>
-//       <TextInput
-//         placeholder="Username"
-//         value={username}
-//         onChangeText={setUsername}
-//       />
-//       <TextInput
-//         placeholder="Password"
-//         secureTextEntry
-//         value={password}
-//         onChangeText={setPassword}
-//       />
-//       <Button title="Login" onPress={handleLogin} />
-//       {error ? <Text>{error}</Text> : null}
-//     </View>
-//   );
-// };
-
-// export default LoginScreen;
-
 import React, { useState } from "react";
 import {
   View,
@@ -57,23 +7,51 @@ import {
   StyleSheet,
 } from "react-native";
 import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  const getDashboardRoute = (role = "") => {
+    const normalizedRole = String(role || "").toLowerCase();
+
+    switch (normalizedRole) {
+      case "hospital":
+        return "HospitalDashboard";
+      case "blood_bank":
+      case "bloodbank":
+        return "BloodBankDashboard";
+      case "transportation":
+      case "transport":
+        return "TransportationDashboard";
+      case "donor":
+      default:
+        return "Donor";
+    }
+  };
+
   const handleLogin = async () => {
     setError("");
 
     try {
-      const response = await axios.post("http://localhost:5000/login", {
+      const response = await axios.post("http://10.172.122.32:5000/login", {
         username,
         password,
       });
 
-      if (response.data.success) {
-        navigation.navigate("Donor");
+      console.log(response.data);
+
+      if (response.data.access_token) {
+        await AsyncStorage.setItem("access_token", response.data.access_token);
+
+        const routeName = getDashboardRoute(response.data.role);
+
+        navigation.reset({
+          index: 0,
+          routes: [{ name: routeName }],
+        });
       }
     } catch (err) {
       console.log(err.response?.data);
