@@ -26,7 +26,7 @@ def create_app():
     app.config.from_object(Config)
 
     CORS(app)
-    
+        
     # Initialize extensions
     db.init_app(app)
     jwt = JWTManager(app)
