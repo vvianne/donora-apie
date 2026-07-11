@@ -40,8 +40,8 @@
 
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import create_access_token
-from datetime import datetime, timedelta
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from datetime import timedelta
 from database import db
 from models.user import User
 from models.hospital import Hospital
@@ -99,7 +99,10 @@ def register():
     new_user = User(
         username=username,
         password_hash=hashed_password,
-        role=role
+        role=role,
+        full_name=name or username,
+        location=location or None,
+        verification_status='verified'
     )
 
     db.session.add(new_user)
@@ -142,7 +145,7 @@ def login():
         }), 401
 
     access_token = create_access_token(
-        identity=user.username,
+        identity=str(user.id),
         additional_claims={
             "role": user.role
         }
@@ -154,3 +157,61 @@ def login():
         "username": user.username,
         "role": user.role
     }), 200
+
+
+@auth_bp.route('/profile', methods=['GET'])
+@jwt_required()
+def get_profile():
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"success": False, "message": "User not found."}), 404
+
+    return jsonify({"success": True, "data": user.serialize()}), 200
+
+
+@auth_bp.route('/profile', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"success": False, "message": "User not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    old_full_name = user.full_name
+    old_phone = user.phone
+    old_blood_type = user.blood_type
+    old_location = user.location
+
+    if "full_name" in data and data.get("full_name") is not None:
+        user.full_name = data.get("full_name", "").strip() or user.full_name
+
+    if "phone" in data and data.get("phone") is not None:
+        user.phone = data.get("phone", "").strip() or None
+
+    if "blood_type" in data and data.get("blood_type") is not None:
+        user.blood_type = data.get("blood_type", "").strip().upper() or None
+
+    if "location" in data and data.get("location") is not None:
+        user.location = data.get("location", "").strip() or None
+
+    changed_fields = []
+    if "full_name" in data and data.get("full_name") is not None and data.get("full_name", "").strip() != (old_full_name or ""):
+        changed_fields.append("full_name")
+    if "phone" in data and data.get("phone") is not None and data.get("phone", "").strip() != (old_phone or ""):
+        changed_fields.append("phone")
+    if "blood_type" in data and data.get("blood_type") is not None and data.get("blood_type", "").strip().upper() != (old_blood_type or ""):
+        changed_fields.append("blood_type")
+    if "location" in data and data.get("location") is not None and data.get("location", "").strip() != (old_location or ""):
+        changed_fields.append("location")
+
+    if changed_fields:
+        user.verification_status = 'pending'
+
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Profile updated successfully.", "data": user.serialize()}), 200

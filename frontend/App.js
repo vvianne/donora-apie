@@ -1,7 +1,7 @@
-if (typeof process === 'undefined') {
-  window.process = { env: { NODE_ENV: 'development' } };
+if (typeof process === "undefined") {
+  window.process = { env: { NODE_ENV: "development" } };
 }
-import 'react-native-gesture-handler';
+import "react-native-gesture-handler";
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
@@ -42,48 +42,52 @@ const App = () => {
     <SafeAreaProvider>
       <NavigationContainer>
         <Stack.Navigator initialRouteName="Login">
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen name="Register" component={RegisterScreen} />
-        <Stack.Screen
-          name="Donor"
-          component={DonorNavigator}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="HospitalDashboard"
-          component={HospitalDashboard}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="BloodBankDashboard"
-          component={BloodBankDashboard}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="TransportationDashboard"
-          component={TransportationDashboard}
-        />
-        <Stack.Screen
-          name="Inventory"
-          component={InventoryScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Requests"
-          component={RequestsScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Profile"
-          component={ProfileScreen}
-          options={{ headerShown: false }}
-        />
-      </Stack.Navigator>
-    </NavigationContainer>
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Register"
+            component={RegisterScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Donor"
+            component={DonorNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="HospitalDashboard"
+            component={HospitalDashboard}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="BloodBankDashboard"
+            component={BloodBankDashboard}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="TransportationDashboard"
+            component={TransportationDashboard}
+          />
+          <Stack.Screen
+            name="Inventory"
+            component={InventoryScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Requests"
+            component={RequestsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Profile"
+            component={ProfileScreen}
+            options={{ headerShown: false }}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
     </SafeAreaProvider>
   );
 };

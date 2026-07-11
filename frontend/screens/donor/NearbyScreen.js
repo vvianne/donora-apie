@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,34 +8,73 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS, SPACING } from "../../theme";
-
-// ============================================
-// DUMMY DATA — swap with real API data later
-// ============================================
-const BLOOD_BANKS = [
-  { id: "1", name: "Blood Bank 1", distance: "1.2 km" },
-  { id: "2", name: "Blood Bank 2", distance: "3.4 km" },
-];
-
-const HOSPITALS = [
-  { id: "1", name: "Hospital 1", distance: "2.1 km" },
-  { id: "2", name: "Hospital 2", distance: "2.8 km" },
-];
-
-const ACTIVE_REQUESTS = [
-  {
-    id: "1",
-    hospital: "Hospital 1",
-    bloodType: "O+",
-    distance: "2.1 km",
-  },
-];
+import api from "../../services/api";
 
 const NearbyScreen = () => {
+  const [profile, setProfile] = useState({ full_name: "", location: "" });
+  const [nearbyData, setNearbyData] = useState({
+    hospitals: [],
+    blood_banks: [],
+    requests: [],
+  });
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadNearby = async () => {
+      try {
+        const token = await AsyncStorage.getItem("access_token");
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        const response = await api.get("/donor/nearby", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const data = response.data?.data || {};
+        setProfile(data.profile || { full_name: "", location: "" });
+        setNearbyData({
+          hospitals: data.hospitals || [],
+          blood_banks: data.blood_banks || [],
+          requests: data.requests || [],
+        });
+      } catch (error) {
+        console.log(
+          "Nearby load failed",
+          error.response?.data || error.message,
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadNearby();
+  }, []);
+
+  const filteredHospitals = (nearbyData.hospitals || []).filter((item) =>
+    `${item.name} ${item.location}`
+      .toLowerCase()
+      .includes(search.toLowerCase()),
+  );
+  const filteredBloodBanks = (nearbyData.blood_banks || []).filter((item) =>
+    `${item.name} ${item.location}`
+      .toLowerCase()
+      .includes(search.toLowerCase()),
+  );
+  const filteredRequests = (nearbyData.requests || []).filter((item) =>
+    `${item.hospital_name} ${item.blood_type} ${item.location}`
+      .toLowerCase()
+      .includes(search.toLowerCase()),
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
@@ -45,39 +84,40 @@ const NearbyScreen = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ============== TITLE ============== */}
         <Text style={styles.pageTitle}>Nearby</Text>
+        <Text style={styles.pageSubtitle}>
+          {profile.full_name || "Donor"} •{" "}
+          {profile.location || "Location not set"}
+        </Text>
 
-        {/* ============== SEARCH BAR ============== */}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={18} color={COLORS.subtitle} />
           <TextInput
-            placeholder="Search location..."
+            placeholder="Search location or facility..."
             placeholderTextColor={COLORS.subtitle}
             style={styles.searchInput}
+            value={search}
+            onChangeText={setSearch}
           />
         </View>
 
-        {/* ============== MAP PREVIEW ============== */}
         <View style={styles.mapCard}>
           <View style={styles.mapPlaceholder}>
             <Ionicons name="map" size={36} color={COLORS.primary} />
-            <Text style={styles.mapPlaceholderText}>Map Preview</Text>
+            <Text style={styles.mapPlaceholderText}>Nearby resources</Text>
           </View>
 
           <View style={styles.mapLegendRow}>
             <View style={styles.legendItem}>
               <Ionicons name="location" size={14} color={COLORS.primary} />
-              <Text style={styles.legendText}>Current Location</Text>
+              <Text style={styles.legendText}>Your location</Text>
             </View>
-
             <View style={styles.legendItem}>
               <View
                 style={[styles.legendDot, { backgroundColor: COLORS.primary }]}
               />
               <Text style={styles.legendText}>Blood Banks</Text>
             </View>
-
             <View style={styles.legendItem}>
               <View
                 style={[styles.legendDot, { backgroundColor: COLORS.warning }]}
@@ -87,116 +127,142 @@ const NearbyScreen = () => {
           </View>
         </View>
 
-        {/* ============== NEARBY BLOOD BANKS ============== */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionIcon}>🩸</Text>
           <Text style={styles.sectionTitle}>Blood Banks</Text>
         </View>
 
-        <View style={{ marginBottom: SPACING.sectionGap }}>
-          {BLOOD_BANKS.map((item) => (
-            <View key={item.id} style={styles.listCard}>
-              <View style={styles.listIconWrapper}>
-                <MaterialCommunityIcons
-                  name="hospital-building"
-                  size={22}
-                  color={COLORS.primary}
-                />
+        {loading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+          </View>
+        ) : (
+          <View style={{ marginBottom: SPACING.sectionGap }}>
+            {filteredBloodBanks.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  No blood banks available right now.
+                </Text>
               </View>
+            ) : (
+              filteredBloodBanks.map((item) => (
+                <View key={item.id} style={styles.listCard}>
+                  <View style={styles.listIconWrapper}>
+                    <MaterialCommunityIcons
+                      name="hospital-building"
+                      size={22}
+                      color={COLORS.primary}
+                    />
+                  </View>
 
-              <View style={{ flex: 1 }}>
-                <Text style={styles.listTitle}>{item.name}</Text>
-                <View style={styles.distanceRow}>
-                  <Ionicons
-                    name="location-outline"
-                    size={12}
-                    color={COLORS.subtitle}
-                  />
-                  <Text style={styles.listDistance}>{item.distance}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listTitle}>{item.name}</Text>
+                    <View style={styles.distanceRow}>
+                      <Ionicons
+                        name="location-outline"
+                        size={12}
+                        color={COLORS.subtitle}
+                      />
+                      <Text style={styles.listDistance}>
+                        {item.location || "Location not set"}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
+              ))
+            )}
+          </View>
+        )}
 
-              <TouchableOpacity style={styles.viewButton} activeOpacity={0.8}>
-                <Text style={styles.viewButtonText}>View</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-
-        {/* ============== NEARBY HOSPITALS ============== */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionIcon}>🏥</Text>
           <Text style={styles.sectionTitle}>Hospitals</Text>
         </View>
 
         <View style={{ marginBottom: SPACING.sectionGap }}>
-          {HOSPITALS.map((item) => (
-            <View key={item.id} style={styles.listCard}>
-              <View style={styles.listIconWrapper}>
-                <Ionicons
-                  name="medkit-outline"
-                  size={22}
-                  color={COLORS.primary}
-                />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.listTitle}>{item.name}</Text>
-                <View style={styles.distanceRow}>
+          {filteredHospitals.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                No hospitals available right now.
+              </Text>
+            </View>
+          ) : (
+            filteredHospitals.map((item) => (
+              <View key={item.id} style={styles.listCard}>
+                <View style={styles.listIconWrapper}>
                   <Ionicons
-                    name="location-outline"
-                    size={12}
-                    color={COLORS.subtitle}
+                    name="medkit-outline"
+                    size={22}
+                    color={COLORS.primary}
                   />
-                  <Text style={styles.listDistance}>{item.distance}</Text>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listTitle}>{item.name}</Text>
+                  <View style={styles.distanceRow}>
+                    <Ionicons
+                      name="location-outline"
+                      size={12}
+                      color={COLORS.subtitle}
+                    />
+                    <Text style={styles.listDistance}>
+                      {item.location || "Location not set"}
+                    </Text>
+                  </View>
                 </View>
               </View>
-
-              <TouchableOpacity style={styles.viewButton} activeOpacity={0.8}>
-                <Text style={styles.viewButtonText}>View</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+            ))
+          )}
         </View>
 
-        {/* ============== ACTIVE BLOOD REQUESTS ============== */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionIcon}>🚨</Text>
           <Text style={styles.sectionTitle}>Active Requests</Text>
         </View>
 
         <View style={{ marginBottom: SPACING.sectionGap }}>
-          {ACTIVE_REQUESTS.map((item) => (
-            <View key={item.id} style={styles.requestCard}>
-              <View style={styles.requestTop}>
-                <Text style={styles.requestHospital} numberOfLines={1}>
-                  {item.hospital}
-                </Text>
-
-                <View style={styles.bloodTypePill}>
-                  <Text style={styles.bloodTypePillText}>{item.bloodType}</Text>
-                </View>
-              </View>
-
-              <View style={styles.requestBottom}>
-                <View style={styles.distanceRow}>
-                  <Ionicons
-                    name="location-outline"
-                    size={13}
-                    color={COLORS.subtitle}
-                  />
-                  <Text style={styles.requestDistance}>{item.distance}</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.respondButton}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.respondButtonText}>Respond</Text>
-                </TouchableOpacity>
-              </View>
+          {filteredRequests.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                No active requests right now.
+              </Text>
             </View>
-          ))}
+          ) : (
+            filteredRequests.map((item) => (
+              <View key={item.id} style={styles.requestCard}>
+                <View style={styles.requestTop}>
+                  <Text style={styles.requestHospital} numberOfLines={1}>
+                    {item.hospital_name}
+                  </Text>
+                  <View style={styles.bloodTypePill}>
+                    <Text style={styles.bloodTypePillText}>
+                      {item.blood_type}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.requestBottom}>
+                  <View style={styles.distanceRow}>
+                    <Ionicons
+                      name="location-outline"
+                      size={13}
+                      color={COLORS.subtitle}
+                    />
+                    <Text style={styles.requestDistance}>
+                      {item.location || "Location not set"}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.respondButton}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.respondButtonText}>Respond</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -229,6 +295,13 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_700Bold",
     fontSize: 30,
     color: COLORS.text,
+    marginBottom: 6,
+  },
+
+  pageSubtitle: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
+    color: COLORS.subtitle,
     marginBottom: SPACING.sectionGap,
   },
 
@@ -434,6 +507,26 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_400Regular",
     fontSize: 12,
     color: COLORS.subtitle,
+  },
+
+  loadingState: {
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+
+  emptyState: {
+    backgroundColor: COLORS.card,
+    borderRadius: SPACING.cardRadius,
+    padding: 16,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+
+  emptyStateText: {
+    fontFamily: "Poppins_500Medium",
+    fontSize: 13,
+    color: COLORS.subtitle,
+    textAlign: "center",
   },
 
   respondButton: {

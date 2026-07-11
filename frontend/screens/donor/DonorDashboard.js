@@ -23,19 +23,12 @@ import {
 } from "@expo-google-fonts/poppins";
 
 import { COLORS, SPACING } from "../../theme";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from "../../services/api";
 
 // ============================================
-// DUMMY DATA — swap with real API data later
+// DEFAULT DATA
 // ============================================
-const DONOR = {
-  name: "Melody",
-  bloodType: "O+",
-  verified: true,
-  donationCount: 12,
-  livesSaved: 24,
-  memberSince: 2024,
-};
-
 const EMERGENCY = {
   active: true,
   hospital: "Hospital 1",
@@ -144,11 +137,59 @@ const DonorDashboard = ({ navigation }) => {
   const [responseSent, setResponseSent] = useState(false);
   const [liveDistance, setLiveDistance] = useState(EMERGENCY.distance);
   const [distanceMode, setDistanceMode] = useState("approx");
+  const [profile, setProfile] = useState({
+    username: "",
+    full_name: "",
+    role: "donor",
+    blood_type: "",
+    verification_status: "verified",
+    location: "",
+  });
+  const [donationCount, setDonationCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const handleRespond = () => {
     setResponseSent(true);
     setShowResponseModal(false);
   };
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const token = await AsyncStorage.getItem("access_token");
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        const [profileRes, historyRes] = await Promise.all([
+          api.get("/auth/profile", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          api.get("/donor/donation_history", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        const profileData = profileRes.data?.data || {};
+        setProfile(profileData);
+        setDonationCount(
+          Array.isArray(historyRes.data?.data)
+            ? historyRes.data.data.length
+            : 0,
+        );
+      } catch (error) {
+        console.log(
+          "Dashboard profile load failed",
+          error.response?.data || error.message,
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
 
   useEffect(() => {
     if (!responseSent) return undefined;
@@ -306,7 +347,9 @@ const DonorDashboard = ({ navigation }) => {
         <View style={styles.header}>
           <View>
             <Text style={styles.hello}>Good Morning 👋</Text>
-            <Text style={styles.name}>{DONOR.name}</Text>
+            <Text style={styles.name}>
+              {profile.full_name || profile.username || "Donor"}
+            </Text>
             <Text style={styles.subtitle}>
               Ready to save someone's life today?
             </Text>
@@ -410,41 +453,63 @@ const DonorDashboard = ({ navigation }) => {
         {/* ============== MY DONOR CARD ============== */}
         <View style={styles.donorCard}>
           <View style={styles.cardHeader}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.donorCardTitle}>My Donor Card</Text>
               <Text style={styles.memberText}>
-                Member since {DONOR.memberSince}
+                {profile.full_name || profile.username || "Donor"} •{" "}
+                {profile.location || "Location not set"}
               </Text>
             </View>
 
             <View style={styles.bloodTypeCircle}>
-              <Text style={styles.bloodType}>{DONOR.bloodType}</Text>
+              <Text style={styles.bloodType}>{profile.blood_type || "-"}</Text>
             </View>
           </View>
 
-          {DONOR.verified && (
-            <View style={styles.verifiedContainer}>
-              <Ionicons
-                name="checkmark-circle"
-                size={16}
-                color={COLORS.success}
-              />
-              <Text style={styles.verifiedText}>Verified Donor</Text>
-            </View>
-          )}
+          <View
+            style={[
+              styles.verifiedContainer,
+              profile.verification_status === "pending" &&
+                styles.pendingContainer,
+            ]}
+          >
+            <Ionicons
+              name={
+                profile.verification_status === "pending"
+                  ? "time-outline"
+                  : "checkmark-circle"
+              }
+              size={16}
+              color={
+                profile.verification_status === "pending"
+                  ? COLORS.warning
+                  : COLORS.success
+              }
+            />
+            <Text
+              style={[
+                styles.verifiedText,
+                profile.verification_status === "pending" && styles.pendingText,
+              ]}
+            >
+              {profile.verification_status === "pending"
+                ? "Pending Verification"
+                : "Verified Donor"}
+            </Text>
+          </View>
 
           <View style={styles.divider} />
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{DONOR.donationCount}</Text>
+              <Text style={styles.statNumber}>{donationCount}</Text>
               <Text style={styles.statLabel}>Donations</Text>
             </View>
 
             <View style={styles.statDivider} />
 
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{DONOR.livesSaved}</Text>
+              <Text style={styles.statNumber}>{profile.location ? 1 : 0}</Text>
               <Text style={styles.statLabel}>Lives Saved</Text>
             </View>
           </View>
@@ -1054,6 +1119,14 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_500Medium",
     fontSize: 12,
     color: COLORS.success,
+  },
+
+  pendingContainer: {
+    backgroundColor: "#FFF7E6",
+  },
+
+  pendingText: {
+    color: COLORS.warning,
   },
 
   divider: {
