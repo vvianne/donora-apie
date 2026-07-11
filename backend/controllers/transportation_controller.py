@@ -66,7 +66,7 @@ def get_all_tasks():
 @transportation_bp.route('/my-tasks', methods=['GET'])
 @jwt_required()
 def get_my_tasks():
-    current_user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(current_user_id)
     
     if not user or user.role != 'TRANSPORTER':
@@ -89,7 +89,7 @@ def get_my_tasks():
 @transportation_bp.route('/tasks/<int:task_id>/status', methods=['PATCH'])
 @jwt_required()
 def update_task_status(task_id):
-    current_user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(current_user_id)
     
     if not user or user.role != 'TRANSPORTER':

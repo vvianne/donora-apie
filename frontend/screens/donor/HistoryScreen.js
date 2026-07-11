@@ -1,9 +1,4 @@
-// HistoryScreen.js
-// MVP History Screen — kept intentionally simple:
-// Header -> Donation Summary -> Donation History -> Achievements
-// Achievements live here instead of their own screen to save time for the demo.
-
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,51 +6,84 @@ import {
   ScrollView,
   SafeAreaView,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS, SPACING } from "../../theme";
+import api from "../../services/api";
 
-// ============================================
-// DUMMY DATA — swap with real API data later
-// ============================================
-const SUMMARY = {
-  totalDonations: 8,
-  livesHelped: 8,
-  lastDonation: "12 June 2026",
+const DEFAULT_PROFILE = {
+  username: "",
+  role: "donor",
+  full_name: "",
+  blood_type: "",
+  location: "",
 };
 
-const DONATION_HISTORY = [
-  {
-    id: "1",
-    place: "PMI Lampung",
-    bloodType: "O+",
-    date: "12 June 2026",
-    status: "Completed",
-  },
-  {
-    id: "2",
-    place: "PMI Bandar Lampung",
-    bloodType: "O+",
-    date: "18 March 2026",
-    status: "Completed",
-  },
-  {
-    id: "3",
-    place: "RS Abdul Moeloek",
-    bloodType: "O+",
-    date: "20 January 2026",
-    status: "Completed",
-  },
-];
-
-const ACHIEVEMENTS = [
-  { id: "1", label: "First Donation", icon: "🥉" },
-  { id: "2", label: "Life Saver", icon: "❤️" },
-  { id: "3", label: "5 Donations", icon: "🏅" },
-];
-
 const HistoryScreen = () => {
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
+  const [donations, setDonations] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const token = await AsyncStorage.getItem("access_token");
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        const [profileRes, historyRes] = await Promise.all([
+          api.get("/auth/profile", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          api.get("/donor/donation_history", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        setProfile(profileRes.data?.data || DEFAULT_PROFILE);
+        setDonations(
+          Array.isArray(historyRes.data?.data) ? historyRes.data.data : [],
+        );
+      } catch (error) {
+        console.log(
+          "History load failed",
+          error.response?.data || error.message,
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const summary = {
+    totalDonations: donations.length,
+    livesHelped: donations.length,
+    lastDonation: donations[0]?.donation_date || "No donation yet",
+  };
+
+  const achievements = [
+    {
+      id: "1",
+      label: "First Donation",
+      icon: "🥉",
+      earned: donations.length >= 1,
+    },
+    { id: "2", label: "Life Saver", icon: "❤️", earned: donations.length >= 1 },
+    {
+      id: "3",
+      label: "5 Donations",
+      icon: "🏅",
+      earned: donations.length >= 5,
+    },
+  ];
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
@@ -65,24 +93,23 @@ const HistoryScreen = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ============== HEADER ============== */}
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
             <Ionicons name="document-text" size={22} color={COLORS.primary} />
             <Text style={styles.pageTitle}>History</Text>
           </View>
           <Text style={styles.headerSubtitle}>
-            Track your donation journey.
+            {profile.full_name || profile.username || "Donor"} •{" "}
+            {profile.location || "Location not set"}
           </Text>
         </View>
 
-        {/* ============== DONATION SUMMARY ============== */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
             <View style={styles.summaryIconWrapper}>
               <Ionicons name="water" size={22} color={COLORS.primary} />
             </View>
-            <Text style={styles.summaryNumber}>{SUMMARY.totalDonations}</Text>
+            <Text style={styles.summaryNumber}>{summary.totalDonations}</Text>
             <Text style={styles.summaryLabel}>Total Donations</Text>
           </View>
 
@@ -92,7 +119,7 @@ const HistoryScreen = () => {
             <View style={styles.summaryIconWrapper}>
               <Ionicons name="heart" size={22} color={COLORS.primary} />
             </View>
-            <Text style={styles.summaryNumber}>{SUMMARY.livesHelped}</Text>
+            <Text style={styles.summaryNumber}>{summary.livesHelped}</Text>
             <Text style={styles.summaryLabel}>Lives Helped</Text>
           </View>
 
@@ -102,51 +129,77 @@ const HistoryScreen = () => {
             <View style={styles.summaryIconWrapper}>
               <Ionicons name="calendar" size={22} color={COLORS.primary} />
             </View>
-            <Text style={styles.summaryDate}>{SUMMARY.lastDonation}</Text>
+            <Text style={styles.summaryDate}>{summary.lastDonation}</Text>
             <Text style={styles.summaryLabel}>Last Donation</Text>
           </View>
         </View>
 
-        {/* ============== DONATION HISTORY ============== */}
         <Text style={styles.sectionTitle}>Donation History</Text>
 
-        <View style={{ marginBottom: SPACING.sectionGap }}>
-          {DONATION_HISTORY.map((item) => (
-            <View key={item.id} style={styles.historyCard}>
-              <View style={styles.historyIconWrapper}>
-                <Ionicons name="water" size={20} color={COLORS.primary} />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <View style={styles.historyTopRow}>
-                  <Text style={styles.historyTitle}>Blood Donation</Text>
-                  <View style={styles.bloodTypePill}>
-                    <Text style={styles.bloodTypePillText}>
-                      {item.bloodType}
-                    </Text>
-                  </View>
+        {loading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+          </View>
+        ) : donations.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons
+              name="folder-open-outline"
+              size={28}
+              color={COLORS.subtitle}
+            />
+            <Text style={styles.emptyStateText}>No donation records yet.</Text>
+          </View>
+        ) : (
+          <View style={{ marginBottom: SPACING.sectionGap }}>
+            {donations.map((item) => (
+              <View key={item.id} style={styles.historyCard}>
+                <View style={styles.historyIconWrapper}>
+                  <Ionicons name="water" size={20} color={COLORS.primary} />
                 </View>
 
-                <Text style={styles.historyPlace}>{item.place}</Text>
-                <Text style={styles.historyDate}>{item.date}</Text>
-              </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.historyTopRow}>
+                    <Text style={styles.historyTitle}>Blood Donation</Text>
+                    <View style={styles.bloodTypePill}>
+                      <Text style={styles.bloodTypePillText}>
+                        {item.blood_type || profile.blood_type || "-"}
+                      </Text>
+                    </View>
+                  </View>
 
-              <View style={styles.statusPill}>
-                <Text style={styles.statusPillText}>{item.status}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
+                  <Text style={styles.historyPlace}>
+                    {item.place ||
+                      item.location ||
+                      profile.location ||
+                      "Recorded donation"}
+                  </Text>
+                  <Text style={styles.historyDate}>
+                    {item.donation_date || "Unknown date"}
+                  </Text>
+                </View>
 
-        {/* ============== ACHIEVEMENTS ============== */}
+                <View style={styles.statusPill}>
+                  <Text style={styles.statusPillText}>Completed</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionIcon}>🏆</Text>
           <Text style={styles.sectionTitle}>Achievements</Text>
         </View>
 
         <View style={styles.achievementsRow}>
-          {ACHIEVEMENTS.map((item) => (
-            <View key={item.id} style={styles.achievementBadge}>
+          {achievements.map((item) => (
+            <View
+              key={item.id}
+              style={[
+                styles.achievementBadge,
+                !item.earned && styles.achievementLocked,
+              ]}
+            >
               <Text style={styles.achievementEmoji}>{item.icon}</Text>
               <Text style={styles.achievementLabel} numberOfLines={2}>
                 {item.label}
@@ -382,7 +435,30 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  achievementLocked: {
+    opacity: 0.7,
+  },
 
+  loadingState: {
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+
+  emptyState: {
+    backgroundColor: COLORS.card,
+    borderRadius: SPACING.cardRadius,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: SPACING.sectionGap,
+  },
+
+  emptyStateText: {
+    marginTop: 8,
+    fontFamily: "Poppins_500Medium",
+    fontSize: 13,
+    color: COLORS.subtitle,
+    textAlign: "center",
+  },
   achievementEmoji: {
     fontSize: 26,
     marginBottom: 8,
