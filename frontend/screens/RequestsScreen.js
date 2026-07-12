@@ -18,6 +18,7 @@ import { useNavigation } from "@react-navigation/native";
 
 import { COLORS, SPACING } from "../theme";
 import api from "../services/api";
+import { EmptyState, StatusBadge } from "../components/ui";
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
@@ -38,8 +39,6 @@ const STATUS_STYLES = {
 };
 
 const RequestCard = ({ item, onView }) => {
-  const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.Pending;
-
   return (
     <View style={styles.card}>
       <View style={styles.cardLeft}>
@@ -52,15 +51,7 @@ const RequestCard = ({ item, onView }) => {
 
           <View style={styles.statusRow}>
             <Text style={styles.statusLabel}>Status : </Text>
-            <View
-              style={[styles.statusPill, { backgroundColor: statusStyle.bg }]}
-            >
-              <Text
-                style={[styles.statusPillText, { color: statusStyle.text }]}
-              >
-                {item.status}
-              </Text>
-            </View>
+            <StatusBadge status={item.status} />
           </View>
         </View>
       </View>
@@ -210,17 +201,7 @@ const RequestsScreen = () => {
       </View>
 
       {requests.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons
-            name="clipboard-outline"
-            size={40}
-            color={COLORS.subtitle}
-          />
-          <Text style={styles.emptyTitle}>No requests yet</Text>
-          <Text style={styles.emptyText}>
-            Create your first emergency request above.
-          </Text>
-        </View>
+        <EmptyState icon="clipboard-outline" title="No requests yet" message="Create your first emergency request when blood is needed." />
       ) : (
         <FlatList
           data={requests}
@@ -259,9 +240,7 @@ const RequestsScreen = () => {
                 </View>
                 <View style={styles.modalRow}>
                   <Text style={styles.modalLabel}>Status:</Text>
-                  <Text style={styles.modalValue}>
-                    {selectedRequest.status}
-                  </Text>
+                  <StatusBadge status={selectedRequest.status} />
                 </View>
                 <View style={styles.modalRow}>
                   <Text style={styles.modalLabel}>Quantity:</Text>
@@ -280,9 +259,8 @@ const RequestsScreen = () => {
                     <View key={response.id} style={styles.modalRow}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.modalValue}>{response.donor_name}</Text>
-                        <Text style={styles.modalLabel}>
-                          {response.blood_type || "-"} · {normalizeStatus(response.status)}
-                        </Text>
+                        <Text style={styles.modalLabel}>{response.blood_type || "-"}</Text>
+                        <StatusBadge status={response.status} />
                       </View>
                       {String(response.status).toLowerCase() === "pending" && (
                         <View>

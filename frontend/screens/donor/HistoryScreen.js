@@ -13,6 +13,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS, SPACING } from "../../theme";
 import api from "../../services/api";
+import { EmptyState, LoadingState, StatusBadge } from "../../components/ui";
 
 const DEFAULT_PROFILE = {
   username: "",
@@ -138,18 +139,9 @@ const HistoryScreen = ({ navigation }) => {
         <Text style={styles.sectionTitle}>Donation History</Text>
 
         {loading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
+          <LoadingState label="Loading donation history…" />
         ) : donations.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons
-              name="folder-open-outline"
-              size={28}
-              color={COLORS.subtitle}
-            />
-            <Text style={styles.emptyStateText}>No donation records yet.</Text>
-          </View>
+          <EmptyState icon="heart-outline" title="No donation history yet" message="Your first donation can make a meaningful difference." />
         ) : (
           <View style={{ marginBottom: SPACING.sectionGap }}>
             {donations.map((item) => (
@@ -180,13 +172,7 @@ const HistoryScreen = ({ navigation }) => {
                   </Text>
                 </View>
 
-                <View style={styles.statusPill}>
-                  <Text style={styles.statusPillText}>
-                    {item.status
-                      ? item.status.charAt(0).toUpperCase() + item.status.slice(1)
-                      : "Completed"}
-                  </Text>
-                </View>
+                <StatusBadge status={item.status || "completed"} />
               </View>
             ))}
           </View>

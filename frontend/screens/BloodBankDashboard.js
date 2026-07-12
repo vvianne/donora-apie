@@ -6,12 +6,14 @@ import {
   SafeAreaView,
   StatusBar,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS, SPACING } from "../theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
+import { EmptyState, LoadingState } from "../components/ui";
 
 const menuItems = [
   {
@@ -40,6 +42,8 @@ const menuItems = [
 const BloodBankDashboard = ({ navigation }) => {
   const [inventory, setInventory] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", fetchData);
@@ -49,6 +53,7 @@ const BloodBankDashboard = ({ navigation }) => {
 
   const fetchData = async () => {
     try {
+      setError("");
       const token = await AsyncStorage.getItem("access_token");
 
       const inventoryResponse = await api.get("/blood_bank/inventory", {
@@ -68,6 +73,9 @@ const BloodBankDashboard = ({ navigation }) => {
     } catch (err) {
       console.log(err.response?.data);
       console.log(err.message);
+      setError("Unable to load blood bank information.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -90,14 +98,18 @@ const BloodBankDashboard = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
       <View style={styles.header}>
-        <Text style={styles.greeting}>Welcome Back</Text>
+        <View style={styles.headerIcon}><Ionicons name="water" size={24} color="white" /></View>
+        <Text style={styles.greeting}>Welcome back</Text>
         <Text style={styles.title}>Blood Bank Dashboard</Text>
         <Text style={styles.subtitle}>
           Quick access to inventory, requests, and profile.
         </Text>
       </View>
 
-      <View style={styles.summaryCard}>
+      {loading ? <LoadingState label="Loading inventory summary…" /> : null}
+      {!!error && !loading ? <EmptyState icon="cloud-offline-outline" title="Dashboard unavailable" message={error} /> : null}
+
+      {!loading && !error && <View style={styles.summaryCard}>
         <View style={styles.summaryHeader}>
           <Text style={styles.sectionTitle}>Inventory Summary</Text>
           <View style={styles.badge}>
@@ -119,7 +131,7 @@ const BloodBankDashboard = ({ navigation }) => {
             <Text style={styles.summaryLabel}>Pending Requests</Text>
           </View>
         </View>
-      </View>
+      </View>}
 
       <View style={styles.menuGrid}>
         {menuItems.map((item) => (
@@ -151,6 +163,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 16,
   },
+  headerIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: COLORS.primary, alignItems: "center", justifyContent: "center", marginBottom: 16 },
   greeting: {
     fontSize: 14,
     color: COLORS.subtitle,

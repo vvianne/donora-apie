@@ -12,7 +12,8 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import api from "../services/api";
-import { COLORS, SPACING } from "../theme";
+import { COLORS, SHADOWS, SPACING } from "../theme";
+import { EmptyState, LoadingState, StatusBadge } from "../components/ui";
 
 const TransportationDashboard = ({ navigation }) => {
   const [tasks, setTasks] = useState([]);
@@ -59,20 +60,20 @@ const TransportationDashboard = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Transportation</Text>
         <Text style={styles.subtitle}>Assigned donation transport tasks</Text>
-        {loading ? <ActivityIndicator color={COLORS.primary} /> : null}
+        {loading ? <LoadingState label="Loading assigned deliveries…" /> : null}
         {!!error && (
           <TouchableOpacity style={styles.card} onPress={loadTasks}>
             <Text style={styles.error}>{error} Tap to retry.</Text>
           </TouchableOpacity>
         )}
         {!loading && !error && tasks.length === 0 ? (
-          <View style={styles.card}><Text style={styles.subtitle}>No assigned tasks.</Text></View>
+          <EmptyState icon="car-outline" title="No assigned deliveries" message="New transport assignments will appear here." />
         ) : null}
         {tasks.map((task) => (
           <View key={task.id} style={styles.card}>
             <Text style={styles.taskTitle}>Task #{task.id}</Text>
             <Text style={styles.subtitle}>{task.pickup_location} → {task.dropoff_location}</Text>
-            <Text style={styles.status}>{String(task.status).replace("_", " ").toUpperCase()}</Text>
+            <View style={{ marginTop: 12 }}><StatusBadge status={task.status} /></View>
             {task.status === "assigned" && (
               <TouchableOpacity style={styles.button} onPress={() => updateStatus(task.id, "in_transit")}>
                 <Text style={styles.buttonText}>Start Transport</Text>
@@ -93,14 +94,14 @@ const TransportationDashboard = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   content: { padding: SPACING.screenPadding, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: "700", color: COLORS.text },
-  subtitle: { color: COLORS.subtitle, marginTop: 4 },
-  card: { backgroundColor: COLORS.card, padding: 16, borderRadius: 16, marginTop: 16 },
-  taskTitle: { fontSize: 16, fontWeight: "700", color: COLORS.text },
+  title: { fontSize: 28, fontFamily: "Poppins_700Bold", color: COLORS.text },
+  subtitle: { color: COLORS.subtitle, marginTop: 4, fontFamily: "Poppins_400Regular", lineHeight: 20 },
+  card: { backgroundColor: COLORS.card, padding: SPACING.cardPadding, borderRadius: SPACING.cardRadius, marginTop: 16, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.card },
+  taskTitle: { fontSize: 16, fontFamily: "Poppins_600SemiBold", color: COLORS.text },
   status: { color: COLORS.primary, fontWeight: "700", marginTop: 12 },
   error: { color: COLORS.primary },
-  button: { backgroundColor: COLORS.primary, padding: 12, borderRadius: 12, marginTop: 14, alignItems: "center" },
-  buttonText: { color: "white", fontWeight: "700" },
+  button: { backgroundColor: COLORS.primary, height: 48, justifyContent: "center", borderRadius: SPACING.buttonRadius, marginTop: 16, alignItems: "center" },
+  buttonText: { color: "white", fontFamily: "Poppins_600SemiBold" },
 });
 
 export default TransportationDashboard;

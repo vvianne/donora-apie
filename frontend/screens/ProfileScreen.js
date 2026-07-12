@@ -19,6 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS, SPACING } from "../theme";
 import api from "../services/api";
+import { LoadingState } from "../components/ui";
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
@@ -543,9 +544,7 @@ const ProfileScreen = ({ navigation }) => {
 
         {/* ============== ROLE-SPECIFIC CARD ============== */}
         {loading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
+          <LoadingState label="Loading your profile…" />
         ) : (
           <RoleCard role={role} data={profile} />
         )}
@@ -994,6 +993,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: "center",
     marginTop: 4,
   },

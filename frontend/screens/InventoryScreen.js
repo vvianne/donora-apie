@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SPACING } from "../theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
+import { EmptyState } from "../components/ui";
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
@@ -197,13 +198,7 @@ const InventoryScreen = () => {
       </View>
 
       {inventory.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="water-outline" size={40} color={COLORS.subtitle} />
-          <Text style={styles.emptyTitle}>No inventory yet</Text>
-          <Text style={styles.emptyText}>
-            Add your first blood stock above.
-          </Text>
-        </View>
+        <EmptyState icon="water-outline" title="No blood inventory yet" message="Add the first stock record using the form above." />
       ) : (
         <FlatList
           data={inventory}

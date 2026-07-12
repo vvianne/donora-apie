@@ -26,6 +26,7 @@ import {
 } from "@expo-google-fonts/poppins";
 
 import { COLORS, SPACING } from "../../theme";
+import { EmptyState, StatusBadge } from "../../components/ui";
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
@@ -294,29 +295,16 @@ const HospitalDashboard = ({ navigation }) => {
         </View>
 
         <View style={{ marginBottom: SPACING.sectionGap }}>
-          {requests.slice(0, 3).map((item) => {
+          {requests.length === 0 ? (
+            <EmptyState icon="medkit-outline" title="No active requests" message="Create an emergency request when your hospital needs blood." />
+          ) : requests.slice(0, 3).map((item) => {
             const priorityStyle =
               PRIORITY_STYLES[item.priority] || PRIORITY_STYLES.Normal;
             return (
               <View key={item.id} style={styles.requestCard}>
                 <View style={styles.requestTopRow}>
                   <Text style={styles.requestTitle}>Blood Request</Text>
-                  <View
-                    style={[
-                      styles.priorityPill,
-                      { backgroundColor: priorityStyle.bg },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.priorityPillText,
-                        { color: priorityStyle.text },
-                      ]}
-                    >
-                      {" "}
-                      {item.status || "Pending"}
-                    </Text>
-                  </View>
+                  <StatusBadge status={item.status || "pending"} />
                 </View>
 
                 <View style={styles.requestGrid}>

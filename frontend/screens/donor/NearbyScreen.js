@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS, SPACING } from "../../theme";
 import api from "../../services/api";
+import { EmptyState, LoadingState } from "../../components/ui";
 
 const NearbyScreen = ({ navigation }) => {
   const [profile, setProfile] = useState({
@@ -112,7 +113,7 @@ const NearbyScreen = ({ navigation }) => {
   if (loading) {
     return (
       <SafeAreaView style={[styles.safeArea, styles.loadingState]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <LoadingState label="Finding nearby requests…" />
       </SafeAreaView>
     );
   }
@@ -147,14 +148,7 @@ const NearbyScreen = ({ navigation }) => {
         )}
         <Text style={styles.sectionTitle}>Urgent Requests</Text>
         {filteredRequests.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons
-              name="clipboard-outline"
-              size={40}
-              color={COLORS.subtitle}
-            />
-            <Text style={styles.emptyText}>No urgent requests nearby.</Text>
-          </View>
+          <EmptyState icon="location-outline" title="No nearby emergency requests" message="We’ll show matching requests in your location as soon as they arrive." />
         ) : (
           filteredRequests.map((req) => {
             // FILTER GOLONGAN DARAH DI SINI

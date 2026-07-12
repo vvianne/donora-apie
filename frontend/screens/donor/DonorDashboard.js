@@ -25,6 +25,7 @@ import {
 import { COLORS, SPACING } from "../../theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../services/api";
+import { StatusBadge } from "../../components/ui";
 
 const QUICK_ACTIONS = [
   {
@@ -541,25 +542,7 @@ const DonorDashboard = ({ navigation }) => {
                   <Text style={styles.activityPlace}>{activity.place}</Text>
                   <Text style={styles.activityDate}>{activity.date}</Text>
                 </View>
-                <View
-                  style={[
-                    styles.statusPill,
-                    activity.status === "Pending" && {
-                      backgroundColor: "#FFF7E6",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusPillText,
-                      activity.status === "Pending" && {
-                        color: COLORS.warning,
-                      },
-                    ]}
-                  >
-                    {activity.status}
-                  </Text>
-                </View>
+                <StatusBadge status={activity.status} />
               </View>
             ))
           )}
