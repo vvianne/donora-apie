@@ -3,5 +3,5 @@ import os
 class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL') or 'sqlite:///donora.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY') or 'dev-jwt-secret-key'
+    SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key-change-in-production'
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY') or os.getenv('JWT_SECRET') or 'dev-jwt-secret-key-change-in-production-min-32-chars'

@@ -61,17 +61,13 @@ const InventoryScreen = () => {
     try {
       const token = await AsyncStorage.getItem("access_token");
 
-      console.log("TOKEN:", token);
-
-      const response = await api.get("/inventory", {
+      const response = await api.get("/blood_bank/inventory", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      console.log("RESPONSE:", response.data);
-
-      setInventory(response.data.data);
+      setInventory(response.data.data || []);
     } catch (err) {
       console.log(err.response?.data);
       console.log(err.message);

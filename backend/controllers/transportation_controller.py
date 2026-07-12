@@ -4,12 +4,20 @@ from database import db
 from models.transportation_task import TransportationTask
 from models.donor_response import DonorResponse
 from models.user import User
+from models.hospital import Hospital
 
 transportation_bp = Blueprint('transportation', __name__)
 
 @transportation_bp.route('/assign', methods=['POST'])
 @jwt_required()
 def assign_transport():
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    # Restrict assignment to admin or hospital users
+    if not user or user.role not in ['admin', 'hospital', 'blood_bank']:
+        return jsonify({'message': 'Unauthorized. Only admin, hospital, or blood bank can assign tasks'}), 403
+    
     data = request.get_json()
     donor_response_id = data.get('donor_response_id')
     transporter_id = data.get('transporter_id')
@@ -21,7 +29,7 @@ def assign_transport():
 
     # Verify transporter
     transporter = User.query.get(transporter_id)
-    if not transporter or transporter.role != 'TRANSPORTER':
+    if not transporter or transporter.role != 'transportation':
         return jsonify({'message': 'Invalid transporter'}), 400
 
     # Verify donor response
@@ -34,7 +42,7 @@ def assign_transport():
         transporter_id=transporter_id,
         pickup_location=pickup_location,
         dropoff_location=dropoff_location,
-        status='assigned'
+        status='pending'
     )
     
     # Update donor response status
@@ -67,14 +75,30 @@ def get_all_tasks():
 @jwt_required()
 def get_my_tasks():
     user_id = int(get_jwt_identity())
-    user = User.query.get(current_user_id)
+    user = User.query.get(user_id)
     
-    if not user or user.role != 'TRANSPORTER':
+    if not user or user.role != 'transportation':
         return jsonify({'message': 'Unauthorized. Must be a transporter'}), 403
 
-    tasks = TransportationTask.query.filter_by(transporter_id=current_user_id).all()
+    tasks = TransportationTask.query.filter_by(transporter_id=user_id).all()
     result = []
     for t in tasks:
+        # Get related data for each task
+        donor_response = DonorResponse.query.get(t.donor_response_id)
+        blood_request = None
+        hospital = None
+        blood_type = None
+        units_required = None
+        priority = None
+        
+        if donor_response:
+            blood_request = donor_response.blood_request
+            if blood_request:
+                blood_type = blood_request.blood_type
+                units_required = blood_request.quantity
+                priority = blood_request.priority
+                hospital = Hospital.query.get(blood_request.hospital_id)
+        
         result.append({
             'id': t.id,
             'donor_response_id': t.donor_response_id,
@@ -82,7 +106,12 @@ def get_my_tasks():
             'dropoff_location': t.dropoff_location,
             'status': t.status,
             'notes': t.notes,
-            'created_at': t.created_at.isoformat() if t.created_at else None
+            'created_at': t.created_at.isoformat() if t.created_at else None,
+            'hospital_name': hospital.name if hospital else 'Unknown',
+            'blood_request_id': blood_request.id if blood_request else None,
+            'blood_type': blood_type,
+            'units_required': units_required,
+            'priority': priority
         })
     return jsonify({'tasks': result}), 200
 
@@ -90,23 +119,23 @@ def get_my_tasks():
 @jwt_required()
 def update_task_status(task_id):
     user_id = int(get_jwt_identity())
-    user = User.query.get(current_user_id)
+    user = User.query.get(user_id)
     
-    if not user or user.role != 'TRANSPORTER':
+    if not user or user.role != 'transportation':
         return jsonify({'message': 'Unauthorized. Must be a transporter'}), 403
 
     data = request.get_json()
     new_status = data.get('status')
     notes = data.get('notes')
 
-    if not new_status or new_status not in ['assigned', 'in_transit', 'completed', 'cancelled']:
+    if not new_status or new_status not in ['pending', 'accepted', 'on_the_way', 'completed']:
         return jsonify({'message': 'Invalid status'}), 400
 
     task = TransportationTask.query.get(task_id)
     if not task:
         return jsonify({'message': 'Task not found'}), 404
 
-    if str(task.transporter_id) != str(current_user_id):
+    if str(task.transporter_id) != str(user_id):
         return jsonify({'message': 'Forbidden. Not your task'}), 403
 
     task.status = new_status
@@ -129,7 +158,23 @@ def get_task(task_id):
     task = TransportationTask.query.get(task_id)
     if not task:
         return jsonify({'message': 'Task not found'}), 404
-        
+    
+    # Get related data
+    donor_response = DonorResponse.query.get(task.donor_response_id)
+    blood_request = None
+    hospital = None
+    blood_type = None
+    units_required = None
+    priority = None
+    
+    if donor_response:
+        blood_request = donor_response.blood_request
+        if blood_request:
+            blood_type = blood_request.blood_type
+            units_required = blood_request.quantity
+            priority = blood_request.priority
+            hospital = Hospital.query.get(blood_request.hospital_id)
+    
     result = {
         'id': task.id,
         'donor_response_id': task.donor_response_id,
@@ -138,6 +183,11 @@ def get_task(task_id):
         'dropoff_location': task.dropoff_location,
         'status': task.status,
         'notes': task.notes,
-        'created_at': task.created_at.isoformat() if task.created_at else None
+        'created_at': task.created_at.isoformat() if task.created_at else None,
+        'hospital_name': hospital.name if hospital else 'Unknown',
+        'blood_request_id': blood_request.id if blood_request else None,
+        'blood_type': blood_type,
+        'units_required': units_required,
+        'priority': priority
     }
     return jsonify(result), 200

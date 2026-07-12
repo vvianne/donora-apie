@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,41 +7,23 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS, SPACING } from "../theme";
-
-// ============================================
-// DUMMY DATA — swap with real API data later
-// ============================================
-const requests = [
-  {
-    id: 1,
-    blood_type: "A+",
-    status: "Pending",
-  },
-  {
-    id: 2,
-    blood_type: "O-",
-    status: "Approved",
-  },
-  {
-    id: 3,
-    blood_type: "AB-",
-    status: "Completed",
-  },
-];
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from "../services/api";
 
 // Status -> color mapping, consistent with the pill style used elsewhere in the app.
 const STATUS_STYLES = {
-  Pending: { bg: "#FFF4E5", text: COLORS.warning },
-  Approved: { bg: "#EFF4FF", text: "#3B82F6" },
-  Completed: { bg: "#ECFDF3", text: COLORS.success },
+  pending: { bg: "#FFF4E5", text: COLORS.warning },
+  fulfilled: { bg: "#EFF4FF", text: "#3B82F6" },
+  cancelled: { bg: "#FDECEC", text: COLORS.primary },
 };
 
 const RequestCard = ({ item }) => {
-  const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.Pending;
+  const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.pending;
 
   return (
     <View style={styles.card}>
@@ -76,6 +58,32 @@ const RequestCard = ({ item }) => {
 };
 
 const RequestsScreen = () => {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRequests();
+  }, []);
+
+  const fetchRequests = async () => {
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+
+      const response = await api.get("/hospital/request", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setRequests(response.data.data || []);
+    } catch (err) {
+      console.log(err.response?.data);
+      console.log(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
@@ -84,13 +92,19 @@ const RequestsScreen = () => {
         <Text style={styles.pageTitle}>Requests</Text>
       </View>
 
-      <FlatList
-        data={requests}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => <RequestCard item={item} />}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={requests}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => <RequestCard item={item} />}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -193,5 +207,10 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
     fontSize: 12,
     color: COLORS.primary,
+  },
+
+  loadingState: {
+    paddingVertical: 24,
+    alignItems: "center",
   },
 });
