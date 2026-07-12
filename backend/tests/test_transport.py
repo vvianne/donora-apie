@@ -23,7 +23,7 @@ def run_tests():
         db.session.commit()
         
         donor = User.query.filter_by(role='DONOR').first()
-        dr = DonorResponse(blood_request_id=br.id, donor_id=donor.id, status='accepted')
+        dr = DonorResponse(blood_request_id=br.id, donor_id=donor.id, status='approved')
         db.session.add(dr)
         db.session.commit()
 

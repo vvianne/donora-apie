@@ -9,15 +9,21 @@ import {
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
+  Modal,
+  Alert,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS, SPACING } from "../../theme";
 import api from "../../services/api";
 
-const NearbyScreen = () => {
-  const [profile, setProfile] = useState({ full_name: "", location: "" });
+const NearbyScreen = ({ navigation }) => {
+  const [profile, setProfile] = useState({
+    full_name: "",
+    location: "",
+    blood_type: "",
+  });
   const [nearbyData, setNearbyData] = useState({
     hospitals: [],
     blood_banks: [],
@@ -25,246 +31,255 @@ const NearbyScreen = () => {
   });
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [responding, setResponding] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const loadNearby = async () => {
-      try {
-        const token = await AsyncStorage.getItem("access_token");
-        if (!token) {
-          setLoading(false);
-          return;
-        }
+    const unsubscribe = navigation.addListener("focus", loadNearby);
+    const interval = setInterval(loadNearby, 5000);
+    return () => { unsubscribe(); clearInterval(interval); };
+  }, [navigation]);
 
-        const response = await api.get("/donor/nearby", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const data = response.data?.data || {};
-        setProfile(data.profile || { full_name: "", location: "" });
-        setNearbyData({
-          hospitals: data.hospitals || [],
-          blood_banks: data.blood_banks || [],
-          requests: data.requests || [],
-        });
-      } catch (error) {
-        console.log(
-          "Nearby load failed",
-          error.response?.data || error.message,
-        );
-      } finally {
+  const loadNearby = async () => {
+    try {
+      setError("");
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) {
         setLoading(false);
+        return;
       }
-    };
 
-    loadNearby();
-  }, []);
+      const response = await api.get("/donor/nearby", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-  const filteredHospitals = (nearbyData.hospitals || []).filter((item) =>
-    `${item.name} ${item.location}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
+      const data = response.data?.data || {};
+      setProfile(
+        data.profile || { full_name: "", location: "", blood_type: "" },
+      );
+      setNearbyData({
+        hospitals: data.hospitals || [],
+        blood_banks: data.blood_banks || [],
+        requests: data.requests || [],
+      });
+    } catch (err) {
+      console.log(err.response?.data || err.message);
+      setError("Unable to load nearby requests. Tap to retry.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredRequests = nearbyData.requests.filter((item) =>
+    !normalizedSearch ||
+    [item.hospital_name, item.location, item.blood_type].some((value) =>
+      String(value || "").toLowerCase().includes(normalizedSearch),
+    ),
   );
-  const filteredBloodBanks = (nearbyData.blood_banks || []).filter((item) =>
-    `${item.name} ${item.location}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
-  const filteredRequests = (nearbyData.requests || []).filter((item) =>
-    `${item.hospital_name} ${item.blood_type} ${item.location}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+
+  const handleRespond = async () => {
+    if (!selectedRequest) return;
+
+    try {
+      setResponding(true);
+      const token = await AsyncStorage.getItem("access_token");
+
+      await api.post(
+        "/donor/response",
+        { blood_request_id: selectedRequest.id },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      Alert.alert(
+        "Response Sent!",
+        `Thank you! Your details and location have been sent to ${selectedRequest.hospital_name || "the hospital"}.`,
+      );
+
+      setSelectedRequest(null);
+      loadNearby();
+    } catch (err) {
+      Alert.alert(
+        "Error",
+        err.response?.data?.message || "Failed to send response.",
+      );
+    } finally {
+      setResponding(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.safeArea, styles.loadingState]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
+      <View style={styles.header}>
+        <Text style={styles.pageTitle}>Nearby</Text>
+        <Text style={styles.subtitle}>Find places and requests near you</Text>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color={COLORS.subtitle} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search location or blood type..."
+          value={search}
+          onChangeText={setSearch}
+        />
+      </View>
+
       <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.pageTitle}>Nearby</Text>
-        <Text style={styles.pageSubtitle}>
-          {profile.full_name || "Donor"} •{" "}
-          {profile.location || "Location not set"}
-        </Text>
-
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color={COLORS.subtitle} />
-          <TextInput
-            placeholder="Search location or facility..."
-            placeholderTextColor={COLORS.subtitle}
-            style={styles.searchInput}
-            value={search}
-            onChangeText={setSearch}
-          />
-        </View>
-
-        <View style={styles.mapCard}>
-          <View style={styles.mapPlaceholder}>
-            <Ionicons name="map" size={36} color={COLORS.primary} />
-            <Text style={styles.mapPlaceholderText}>Nearby resources</Text>
-          </View>
-
-          <View style={styles.mapLegendRow}>
-            <View style={styles.legendItem}>
-              <Ionicons name="location" size={14} color={COLORS.primary} />
-              <Text style={styles.legendText}>Your location</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: COLORS.primary }]}
-              />
-              <Text style={styles.legendText}>Blood Banks</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: COLORS.warning }]}
-              />
-              <Text style={styles.legendText}>Hospitals</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionIcon}>🩸</Text>
-          <Text style={styles.sectionTitle}>Blood Banks</Text>
-        </View>
-
-        {loading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
+        {!!error && (
+          <TouchableOpacity style={styles.emptyState} onPress={loadNearby}>
+            <Text style={styles.emptyText}>{error}</Text>
+          </TouchableOpacity>
+        )}
+        <Text style={styles.sectionTitle}>Urgent Requests</Text>
+        {filteredRequests.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons
+              name="clipboard-outline"
+              size={40}
+              color={COLORS.subtitle}
+            />
+            <Text style={styles.emptyText}>No urgent requests nearby.</Text>
           </View>
         ) : (
-          <View style={{ marginBottom: SPACING.sectionGap }}>
-            {filteredBloodBanks.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  No blood banks available right now.
-                </Text>
-              </View>
-            ) : (
-              filteredBloodBanks.map((item) => (
-                <View key={item.id} style={styles.listCard}>
-                  <View style={styles.listIconWrapper}>
-                    <MaterialCommunityIcons
-                      name="hospital-building"
-                      size={22}
-                      color={COLORS.primary}
-                    />
-                  </View>
+          filteredRequests.map((req) => {
+            // FILTER GOLONGAN DARAH DI SINI
+            const isBloodMatch = req.blood_type === profile.blood_type;
+            const isDisabled = req.responded || !isBloodMatch;
 
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.listTitle}>{item.name}</Text>
-                    <View style={styles.distanceRow}>
-                      <Ionicons
-                        name="location-outline"
-                        size={12}
-                        color={COLORS.subtitle}
-                      />
-                      <Text style={styles.listDistance}>
-                        {item.location || "Location not set"}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        )}
-
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionIcon}>🏥</Text>
-          <Text style={styles.sectionTitle}>Hospitals</Text>
-        </View>
-
-        <View style={{ marginBottom: SPACING.sectionGap }}>
-          {filteredHospitals.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                No hospitals available right now.
-              </Text>
-            </View>
-          ) : (
-            filteredHospitals.map((item) => (
-              <View key={item.id} style={styles.listCard}>
-                <View style={styles.listIconWrapper}>
-                  <Ionicons
-                    name="medkit-outline"
-                    size={22}
-                    color={COLORS.primary}
-                  />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.listTitle}>{item.name}</Text>
-                  <View style={styles.distanceRow}>
-                    <Ionicons
-                      name="location-outline"
-                      size={12}
-                      color={COLORS.subtitle}
-                    />
-                    <Text style={styles.listDistance}>
-                      {item.location || "Location not set"}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionIcon}>🚨</Text>
-          <Text style={styles.sectionTitle}>Active Requests</Text>
-        </View>
-
-        <View style={{ marginBottom: SPACING.sectionGap }}>
-          {filteredRequests.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                No active requests right now.
-              </Text>
-            </View>
-          ) : (
-            filteredRequests.map((item) => (
-              <View key={item.id} style={styles.requestCard}>
+            return (
+              <TouchableOpacity
+                key={req.id.toString()}
+                style={[styles.requestCard, isDisabled && { opacity: 0.6 }]}
+                onPress={() => !isDisabled && setSelectedRequest(req)}
+                activeOpacity={isDisabled ? 1 : 0.8}
+                disabled={isDisabled}
+              >
                 <View style={styles.requestTop}>
                   <Text style={styles.requestHospital} numberOfLines={1}>
-                    {item.hospital_name}
+                    {req.hospital_name || "Hospital Emergency"}
                   </Text>
-                  <View style={styles.bloodTypePill}>
+                  <View
+                    style={[
+                      styles.bloodTypePill,
+                      isDisabled && { backgroundColor: "#888888" },
+                    ]}
+                  >
                     <Text style={styles.bloodTypePillText}>
-                      {item.blood_type}
+                      {req.blood_type}
                     </Text>
                   </View>
                 </View>
-
                 <View style={styles.requestBottom}>
-                  <View style={styles.distanceRow}>
+                  <View style={styles.iconText}>
                     <Ionicons
                       name="location-outline"
-                      size={13}
+                      size={14}
                       color={COLORS.subtitle}
                     />
                     <Text style={styles.requestDistance}>
-                      {item.location || "Location not set"}
+                      {req.location || "Location not provided"}
                     </Text>
                   </View>
-
-                  <TouchableOpacity
-                    style={styles.respondButton}
-                    activeOpacity={0.85}
+                  <Text
+                    style={[
+                      styles.respondText,
+                      isDisabled && { color: "#888888" },
+                    ]}
                   >
-                    <Text style={styles.respondButtonText}>Respond</Text>
-                  </TouchableOpacity>
+                    {req.responded
+                      ? "Responded"
+                      : !isBloodMatch
+                        ? "Not a Match"
+                        : "Tap to Respond"}
+                  </Text>
                 </View>
-              </View>
-            ))
-          )}
-        </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
+
+      {/* MODAL RESPOND (Sama seperti sebelumnya) */}
+      <Modal
+        visible={!!selectedRequest}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedRequest(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Request Details</Text>
+              <TouchableOpacity onPress={() => setSelectedRequest(null)}>
+                <Ionicons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedRequest && (
+              <View style={styles.modalBody}>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>Hospital:</Text>
+                  <Text style={styles.modalValue}>
+                    {selectedRequest.hospital_name}
+                  </Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>Blood Type Needed:</Text>
+                  <Text style={[styles.modalValue, { color: COLORS.primary }]}>
+                    {selectedRequest.blood_type}
+                  </Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>Hospital Location:</Text>
+                  <Text style={styles.modalValue}>
+                    {selectedRequest.location}
+                  </Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>Your Blood Type:</Text>
+                  <Text style={styles.modalValue}>{profile.blood_type}</Text>
+                </View>
+
+                <View style={styles.modalDivider} />
+
+                <Text style={styles.modalDesc}>
+                  Your registered location{" "}
+                  <Text style={{ fontFamily: "Poppins_600SemiBold" }}>
+                    ({profile.location || "Unknown"})
+                  </Text>{" "}
+                  will be shared with the hospital so they can prioritize nearby
+                  donors.
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.modalRespondButton}
+              onPress={handleRespond}
+              disabled={responding}
+            >
+              <Text style={styles.modalRespondButtonText}>
+                {responding ? "Sending Response..." : "I Want to Donate"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -275,204 +290,89 @@ export default NearbyScreen;
 // STYLES
 // ============================================
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-
-  scrollContent: {
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  loadingState: { justifyContent: "center", alignItems: "center" },
+  header: {
     paddingHorizontal: SPACING.screenPadding,
     paddingTop: 16,
-    paddingBottom: 40,
+    paddingBottom: 10,
   },
-
   pageTitle: {
     fontFamily: "Poppins_700Bold",
     fontSize: 30,
     color: COLORS.text,
-    marginBottom: 6,
   },
-
-  pageSubtitle: {
+  subtitle: {
     fontFamily: "Poppins_400Regular",
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.subtitle,
-    marginBottom: SPACING.sectionGap,
+    marginTop: -4,
   },
-
-  // ---------- SEARCH BAR ----------
   searchContainer: {
-    backgroundColor: COLORS.card,
-    borderRadius: SPACING.inputRadius,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.sectionGap,
+    backgroundColor: COLORS.card,
+    marginHorizontal: SPACING.screenPadding,
+    paddingHorizontal: 16,
+    borderRadius: SPACING.inputRadius,
+    height: 50,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
-
   searchInput: {
     flex: 1,
+    marginLeft: 10,
     fontFamily: "Poppins_400Regular",
     fontSize: 14,
     color: COLORS.text,
   },
-
-  // ---------- MAP PREVIEW ----------
-  mapCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: SPACING.cardRadius,
-    padding: SPACING.cardPadding,
-    marginBottom: SPACING.sectionGap,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-
-  mapPlaceholder: {
-    height: 160,
-    borderRadius: SPACING.cardRadius - 6,
-    backgroundColor: COLORS.secondary,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
-
-  mapPlaceholderText: {
-    fontFamily: "Poppins_500Medium",
-    fontSize: 13,
-    color: COLORS.primary,
-  },
-
-  mapLegendRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 16,
-  },
-
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-
-  legendText: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 11,
-    color: COLORS.subtitle,
-  },
-
-  // ---------- SECTION HEADER ----------
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 14,
-  },
-
-  sectionIcon: {
-    fontSize: 18,
-  },
-
+  content: { paddingHorizontal: SPACING.screenPadding, paddingBottom: 100 },
   sectionTitle: {
     fontFamily: "Poppins_600SemiBold",
     fontSize: 18,
     color: COLORS.text,
-  },
-
-  // ---------- LIST CARD (Blood Banks / Hospitals) ----------
-  listCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.card,
-    borderRadius: 18,
-    padding: 14,
     marginBottom: 12,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
-
-  listIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.secondary,
+  emptyState: {
+    backgroundColor: COLORS.card,
+    borderRadius: SPACING.cardRadius - 6,
+    padding: 24,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+    marginBottom: 20,
   },
-
-  listTitle: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 14,
-    color: COLORS.text,
-  },
-
-  distanceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    marginTop: 4,
-  },
-
-  listDistance: {
+  emptyText: {
+    marginTop: 8,
     fontFamily: "Poppins_400Regular",
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.subtitle,
+    textAlign: "center",
   },
-
-  viewButton: {
-    backgroundColor: COLORS.secondary,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: SPACING.buttonRadius,
-  },
-
-  viewButtonText: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 12,
-    color: COLORS.primary,
-  },
-
-  // ---------- ACTIVE REQUEST CARD ----------
   requestCard: {
     backgroundColor: COLORS.card,
-    borderRadius: SPACING.cardRadius - 4,
+    borderRadius: SPACING.cardRadius - 6,
     padding: SPACING.cardPadding - 4,
-    borderWidth: 1.5,
-    borderColor: COLORS.secondary,
+    marginBottom: 14,
     shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
-
   requestTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-
   requestHospital: {
     flex: 1,
     fontFamily: "Poppins_600SemiBold",
@@ -480,7 +380,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginRight: 10,
   },
-
   bloodTypePill: {
     backgroundColor: COLORS.primary,
     width: 36,
@@ -489,56 +388,93 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   bloodTypePillText: {
     fontFamily: "Poppins_700Bold",
     fontSize: 13,
     color: "white",
   },
-
   requestBottom: {
     marginTop: 14,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-
+  iconText: { flexDirection: "row", alignItems: "center", gap: 4 },
   requestDistance: {
     fontFamily: "Poppins_400Regular",
     fontSize: 12,
     color: COLORS.subtitle,
   },
-
-  loadingState: {
-    paddingVertical: 24,
-    alignItems: "center",
+  respondText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 12,
+    color: COLORS.primary,
   },
-
-  emptyState: {
-    backgroundColor: COLORS.card,
-    borderRadius: SPACING.cardRadius,
-    padding: 16,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    padding: 20,
   },
-
-  emptyStateText: {
+  modalContent: {
+    width: "100%",
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 20,
+    color: COLORS.text,
+  },
+  modalBody: { marginBottom: 24 },
+  modalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  modalLabel: {
     fontFamily: "Poppins_500Medium",
-    fontSize: 13,
+    fontSize: 14,
+    color: COLORS.subtitle,
+  },
+  modalValue: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 16,
+  },
+  modalDesc: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 12,
     color: COLORS.subtitle,
     textAlign: "center",
   },
-
-  respondButton: {
+  modalRespondButton: {
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingVertical: 14,
     borderRadius: SPACING.buttonRadius,
+    alignItems: "center",
   },
-
-  respondButtonText: {
-    fontFamily: "Poppins_700Bold",
-    fontSize: 12,
+  modalRespondButtonText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
     color: "white",
   },
 });

@@ -23,6 +23,7 @@ import InventoryScreen from "./screens/InventoryScreen";
 import RequestsScreen from "./screens/RequestsScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import DonorNavigator from "./navigation/DonorNavigator";
+import HospitalNavigator from "./navigation/HospitalNavigator";
 
 const Stack = createStackNavigator();
 
@@ -59,7 +60,7 @@ const App = () => {
           />
           <Stack.Screen
             name="HospitalDashboard"
-            component={HospitalDashboard}
+            component={HospitalNavigator}
             options={{ headerShown: false }}
           />
           <Stack.Screen

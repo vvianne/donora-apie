@@ -7,25 +7,25 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  TextInput,
+  Alert,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS, SPACING } from "../theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
 
-// ============================================
-// DUMMY DATA — swap with real API data later
-// ============================================
+const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
-// Simple rule: 0 = critical (red), <=5 = low (orange), else fine (default text color).
 const getQuantityColor = (quantity) => {
   if (quantity === 0) return COLORS.primary;
   if (quantity <= 5) return COLORS.warning;
   return COLORS.text;
 };
 
-const InventoryCard = ({ item }) => {
+const InventoryCard = ({ item, onEdit }) => {
   const quantityColor = getQuantityColor(item.quantity);
 
   return (
@@ -43,7 +43,11 @@ const InventoryCard = ({ item }) => {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.editButton} activeOpacity={0.8}>
+      <TouchableOpacity
+        style={styles.editButton}
+        activeOpacity={0.8}
+        onPress={onEdit}
+      >
         <Text style={styles.editButtonText}>Edit</Text>
       </TouchableOpacity>
     </View>
@@ -52,6 +56,9 @@ const InventoryCard = ({ item }) => {
 
 const InventoryScreen = () => {
   const [inventory, setInventory] = useState([]);
+  const [form, setForm] = useState({ blood_type: "O+", quantity: "1" });
+  const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     fetchInventory();
@@ -61,22 +68,78 @@ const InventoryScreen = () => {
     try {
       const token = await AsyncStorage.getItem("access_token");
 
-      console.log("TOKEN:", token);
-
-      const response = await api.get("/inventory", {
+      const response = await api.get("/blood_bank/inventory", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      console.log("RESPONSE:", response.data);
-
-      setInventory(response.data.data);
+      setInventory(response.data.data || []);
     } catch (err) {
-      console.log(err.response?.data);
-      console.log(err.message);
+      console.log(err.response?.data || err.message);
     }
   };
+
+  const handleEditClick = (item) => {
+    setForm({
+      blood_type: item.blood_type,
+      quantity: item.quantity.toString(),
+    });
+    setEditingId(item.id);
+  };
+
+  const handleCancelEdit = () => {
+    setForm({ blood_type: "O+", quantity: "1" });
+    setEditingId(null);
+  };
+
+  const handleSubmit = async () => {
+    if (!form.blood_type || !form.quantity) {
+      Alert.alert(
+        "Missing details",
+        "Please fill in the blood type and quantity.",
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = await AsyncStorage.getItem("access_token");
+
+      if (editingId) {
+        await api.put(
+          `/blood_bank/inventory/${editingId}`,
+          {
+            blood_type: form.blood_type,
+            quantity: Number(form.quantity),
+          },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        Alert.alert("Success", "Inventory updated successfully.");
+      } else {
+        await api.post(
+          "/blood_bank/inventory",
+          {
+            blood_type: form.blood_type,
+            quantity: Number(form.quantity),
+          },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        Alert.alert("Success", "Inventory added successfully.");
+      }
+
+      handleCancelEdit();
+      await fetchInventory();
+    } catch (err) {
+      Alert.alert(
+        "Error",
+        err.response?.data?.message || "Could not save inventory.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
@@ -85,18 +148,73 @@ const InventoryScreen = () => {
         <Text style={styles.pageTitle}>Inventory</Text>
       </View>
 
-      <FlatList
-        data={inventory}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => <InventoryCard item={item} />}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      <View style={styles.formCard}>
+        <Text style={styles.formTitle}>
+          {editingId ? "Update Blood Stock" : "Add Blood Stock"}
+        </Text>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={form.blood_type}
+            onValueChange={(value) => setForm({ ...form, blood_type: value })}
+            style={styles.picker}
+            dropdownIconColor={COLORS.text}
+          >
+            <Picker.Item label="Select blood type" value="" />
+            {BLOOD_TYPES.map((type) => (
+              <Picker.Item key={type} label={type} value={type} />
+            ))}
+          </Picker>
+        </View>
+        <TextInput
+          style={styles.input}
+          value={form.quantity}
+          onChangeText={(value) => setForm({ ...form, quantity: value })}
+          placeholder="Quantity"
+          keyboardType="numeric"
+        />
+        <TouchableOpacity
+          style={styles.submitButton}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          <Text style={styles.submitButtonText}>
+            {loading ? "Saving..." : editingId ? "Update Stock" : "Add Stock"}
+          </Text>
+        </TouchableOpacity>
 
-      {/* ============== FLOATING ACTION BUTTON ============== */}
-      <TouchableOpacity style={styles.fab} activeOpacity={0.85}>
-        <Ionicons name="add" size={28} color="white" />
-      </TouchableOpacity>
+        {editingId && (
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              { backgroundColor: COLORS.warning, marginTop: 10 },
+            ]}
+            onPress={handleCancelEdit}
+            disabled={loading}
+          >
+            <Text style={styles.submitButtonText}>Cancel Edit</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {inventory.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="water-outline" size={40} color={COLORS.subtitle} />
+          <Text style={styles.emptyTitle}>No inventory yet</Text>
+          <Text style={styles.emptyText}>
+            Add your first blood stock above.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={inventory}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <InventoryCard item={item} onEdit={() => handleEditClick(item)} />
+          )}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -126,7 +244,87 @@ const styles = StyleSheet.create({
 
   listContent: {
     paddingHorizontal: SPACING.screenPadding,
-    paddingBottom: 100, // ruang biar item terakhir gak ketutup FAB
+    paddingBottom: 100,
+  },
+
+  formCard: {
+    marginHorizontal: SPACING.screenPadding,
+    marginBottom: 16,
+    padding: SPACING.cardPadding - 4,
+    borderRadius: SPACING.cardRadius - 6,
+    backgroundColor: COLORS.card,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+
+  formTitle: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 16,
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: SPACING.inputRadius,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    fontFamily: "Poppins_500Medium",
+    color: COLORS.text,
+  },
+
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: SPACING.inputRadius,
+    marginBottom: 10,
+    overflow: "hidden",
+    backgroundColor: "white",
+  },
+
+  picker: {
+    color: COLORS.text,
+    height: 48,
+  },
+
+  submitButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    borderRadius: SPACING.buttonRadius,
+    alignItems: "center",
+  },
+
+  submitButtonText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
+    color: "white",
+  },
+
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: SPACING.screenPadding,
+  },
+
+  emptyTitle: {
+    marginTop: 8,
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 16,
+    color: COLORS.text,
+  },
+
+  emptyText: {
+    marginTop: 4,
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
+    color: COLORS.subtitle,
+    textAlign: "center",
   },
 
   card: {
@@ -185,20 +383,4 @@ const styles = StyleSheet.create({
   },
 
   // ---------- FLOATING ACTION BUTTON ----------
-  fab: {
-    position: "absolute",
-    right: SPACING.screenPadding,
-    bottom: 28,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: COLORS.primaryDark,
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
 });

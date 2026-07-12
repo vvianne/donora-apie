@@ -22,13 +22,12 @@ const DEFAULT_PROFILE = {
   location: "",
 };
 
-const HistoryScreen = () => {
+const HistoryScreen = ({ navigation }) => {
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadData = async () => {
+  const loadData = async () => {
       try {
         const token = await AsyncStorage.getItem("access_token");
         if (!token) {
@@ -57,10 +56,12 @@ const HistoryScreen = () => {
       } finally {
         setLoading(false);
       }
-    };
+  };
 
-    loadData();
-  }, []);
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", loadData);
+    return unsubscribe;
+  }, [navigation]);
 
   const summary = {
     totalDonations: donations.length,
@@ -168,7 +169,8 @@ const HistoryScreen = () => {
                   </View>
 
                   <Text style={styles.historyPlace}>
-                    {item.place ||
+                    {item.hospital_name ||
+                      item.place ||
                       item.location ||
                       profile.location ||
                       "Recorded donation"}
@@ -179,7 +181,11 @@ const HistoryScreen = () => {
                 </View>
 
                 <View style={styles.statusPill}>
-                  <Text style={styles.statusPillText}>Completed</Text>
+                  <Text style={styles.statusPillText}>
+                    {item.status
+                      ? item.status.charAt(0).toUpperCase() + item.status.slice(1)
+                      : "Completed"}
+                  </Text>
                 </View>
               </View>
             ))}

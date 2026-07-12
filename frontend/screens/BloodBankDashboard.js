@@ -42,20 +42,22 @@ const BloodBankDashboard = ({ navigation }) => {
   const [requests, setRequests] = useState([]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const unsubscribe = navigation.addListener("focus", fetchData);
+    const interval = setInterval(fetchData, 5000);
+    return () => { unsubscribe(); clearInterval(interval); };
+  }, [navigation]);
 
   const fetchData = async () => {
     try {
       const token = await AsyncStorage.getItem("access_token");
 
-      const inventoryResponse = await api.get("/inventory", {
+      const inventoryResponse = await api.get("/blood_bank/inventory", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      const requestResponse = await api.get("/request", {
+      const requestResponse = await api.get("/blood_bank/requests", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -74,7 +76,9 @@ const BloodBankDashboard = ({ navigation }) => {
   const lowStock = inventory.filter((item) => item.quantity <= 5).length;
 
   const pendingRequests = requests.filter(
-    (item) => item.status === "Pending",
+    (item) => ["pending", "open", "urgent", "active"].includes(
+      String(item.status).toLowerCase(),
+    ),
   ).length;
 
   const goToScreen = (screen) => {

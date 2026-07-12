@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,40 +7,37 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  TextInput,
+  Alert,
+  Modal,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNavigation } from "@react-navigation/native";
 
 import { COLORS, SPACING } from "../theme";
+import api from "../services/api";
 
-// ============================================
-// DUMMY DATA — swap with real API data later
-// ============================================
-const requests = [
-  {
-    id: 1,
-    blood_type: "A+",
-    status: "Pending",
-  },
-  {
-    id: 2,
-    blood_type: "O-",
-    status: "Approved",
-  },
-  {
-    id: 3,
-    blood_type: "AB-",
-    status: "Completed",
-  },
-];
+const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
-// Status -> color mapping, consistent with the pill style used elsewhere in the app.
+const normalizeStatus = (status) => {
+  const value = (status || "").toLowerCase();
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "Unknown";
+};
+
 const STATUS_STYLES = {
   Pending: { bg: "#FFF4E5", text: COLORS.warning },
   Approved: { bg: "#EFF4FF", text: "#3B82F6" },
+  Verified: { bg: "#E0F2FE", text: "#0284C7" },
   Completed: { bg: "#ECFDF3", text: COLORS.success },
+  Accepted: { bg: "#EFF4FF", text: "#3B82F6" },
+  Transporting: { bg: "#E0F2FE", text: "#0284C7" },
+  Cancelled: { bg: "#F2F4F7", text: COLORS.subtitle },
+  Rejected: { bg: "#FFECEC", text: COLORS.primary },
 };
 
-const RequestCard = ({ item }) => {
+const RequestCard = ({ item, onView }) => {
   const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.Pending;
 
   return (
@@ -68,7 +65,12 @@ const RequestCard = ({ item }) => {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.viewButton} activeOpacity={0.8}>
+      <TouchableOpacity
+        style={styles.viewButton}
+        activeOpacity={0.8}
+        onPress={() => onView(item)}
+        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+      >
         <Text style={styles.viewButtonText}>View</Text>
       </TouchableOpacity>
     </View>
@@ -76,6 +78,96 @@ const RequestCard = ({ item }) => {
 };
 
 const RequestsScreen = () => {
+  const [requests, setRequests] = useState([]);
+  const [form, setForm] = useState({
+    blood_type: "O+",
+    quantity: "1",
+  });
+  const [loading, setLoading] = useState(false);
+
+  // State baru khusus untuk mengontrol pop-up Modal dalam aplikasi
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", fetchRequests);
+    const interval = setInterval(fetchRequests, 5000);
+    return () => { unsubscribe(); clearInterval(interval); };
+  }, [navigation]);
+
+  const fetchRequests = async () => {
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      const response = await api.get("/hospital/request", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const normalizedRequests = (response.data.data || []).map((item) => ({
+        ...item,
+        status: normalizeStatus(item.status),
+      }));
+      setRequests(normalizedRequests);
+    } catch (err) {
+      console.log(err.response?.data || err.message);
+    }
+  };
+
+  const handleCreateRequest = async () => {
+    if (!form.blood_type || !form.quantity) {
+      Alert.alert(
+        "Missing details",
+        "Please fill in the blood type and quantity.",
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = await AsyncStorage.getItem("access_token");
+
+      await api.post(
+        "/hospital/request",
+        {
+          blood_type: form.blood_type,
+          quantity: Number(form.quantity),
+          status: "Pending",
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setForm({ blood_type: "O+", quantity: "1" });
+      await fetchRequests();
+      Alert.alert("Success", "Emergency request created.");
+    } catch (err) {
+      Alert.alert(
+        "Error",
+        err.response?.data?.message || "Could not create request.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewRequest = (item) => {
+    // Membuka modal kustom di dalam aplikasi alih-alih Alert bawaan
+    setSelectedRequest(item);
+  };
+
+  const updateResponseStatus = async (responseId, status) => {
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      await api.patch(
+        `/hospital/response/${responseId}/status`,
+        { status },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      await fetchRequests();
+      setSelectedRequest(null);
+    } catch (err) {
+      Alert.alert("Error", err.response?.data?.message || "Unable to update status.");
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
@@ -84,13 +176,143 @@ const RequestsScreen = () => {
         <Text style={styles.pageTitle}>Requests</Text>
       </View>
 
-      <FlatList
-        data={requests}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => <RequestCard item={item} />}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      <View style={styles.formCard}>
+        <Text style={styles.formTitle}>Create Emergency Request</Text>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={form.blood_type}
+            onValueChange={(value) => setForm({ ...form, blood_type: value })}
+            style={styles.picker}
+            dropdownIconColor={COLORS.text}
+          >
+            <Picker.Item label="Select blood type" value="" />
+            {BLOOD_TYPES.map((type) => (
+              <Picker.Item key={type} label={type} value={type} />
+            ))}
+          </Picker>
+        </View>
+        <TextInput
+          style={styles.input}
+          value={form.quantity}
+          onChangeText={(value) => setForm({ ...form, quantity: value })}
+          placeholder="Quantity"
+          keyboardType="numeric"
+        />
+        <TouchableOpacity
+          style={styles.submitButton}
+          onPress={handleCreateRequest}
+          disabled={loading}
+        >
+          <Text style={styles.submitButtonText}>
+            {loading ? "Creating..." : "Submit Request"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {requests.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons
+            name="clipboard-outline"
+            size={40}
+            color={COLORS.subtitle}
+          />
+          <Text style={styles.emptyTitle}>No requests yet</Text>
+          <Text style={styles.emptyText}>
+            Create your first emergency request above.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={requests}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <RequestCard item={item} onView={handleViewRequest} />
+          )}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+
+      {/* CUSTOM IN-APP MODAL UNTUK VIEW */}
+      <Modal
+        visible={!!selectedRequest}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedRequest(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Request Info</Text>
+              <TouchableOpacity onPress={() => setSelectedRequest(null)}>
+                <Ionicons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedRequest && (
+              <View style={styles.modalBody}>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>Blood Type:</Text>
+                  <Text style={styles.modalValue}>
+                    {selectedRequest.blood_type}
+                  </Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>Status:</Text>
+                  <Text style={styles.modalValue}>
+                    {selectedRequest.status}
+                  </Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>Quantity:</Text>
+                  <Text style={styles.modalValue}>
+                    {selectedRequest.quantity || "N/A"} Bags
+                  </Text>
+                </View>
+
+                <View style={styles.modalDivider} />
+
+                <Text style={styles.modalDesc}>Donor responses</Text>
+                {(selectedRequest.responses || []).length === 0 ? (
+                  <Text style={styles.modalDesc}>No donor has responded yet.</Text>
+                ) : (
+                  selectedRequest.responses.map((response) => (
+                    <View key={response.id} style={styles.modalRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.modalValue}>{response.donor_name}</Text>
+                        <Text style={styles.modalLabel}>
+                          {response.blood_type || "-"} · {normalizeStatus(response.status)}
+                        </Text>
+                      </View>
+                      {String(response.status).toLowerCase() === "pending" && (
+                        <View>
+                          <TouchableOpacity onPress={() => updateResponseStatus(response.id, "approved")}>
+                            <Text style={styles.modalConnectButtonText}>Approve</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => updateResponseStatus(response.id, "rejected")}>
+                            <Text style={[styles.modalConnectButtonText, { color: COLORS.primary }]}>Reject</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      {["approved", "transporting"].includes(
+                        String(response.status).toLowerCase(),
+                      ) && (
+                        <TouchableOpacity onPress={() => updateResponseStatus(response.id, "completed")}>
+                          <Text style={styles.modalConnectButtonText}>Mark Completed</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            <TouchableOpacity style={styles.modalConnectButton} onPress={() => setSelectedRequest(null)}>
+              <Text style={styles.modalConnectButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -121,6 +343,86 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: SPACING.screenPadding,
     paddingBottom: 40,
+  },
+
+  formCard: {
+    marginHorizontal: SPACING.screenPadding,
+    marginBottom: 16,
+    padding: SPACING.cardPadding - 4,
+    borderRadius: SPACING.cardRadius - 6,
+    backgroundColor: COLORS.card,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+
+  formTitle: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 16,
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: SPACING.inputRadius,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    fontFamily: "Poppins_500Medium",
+    color: COLORS.text,
+  },
+
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: SPACING.inputRadius,
+    marginBottom: 10,
+    overflow: "hidden",
+    backgroundColor: "white",
+  },
+
+  picker: {
+    color: COLORS.text,
+    height: 48,
+  },
+
+  submitButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    borderRadius: SPACING.buttonRadius,
+    alignItems: "center",
+  },
+
+  submitButtonText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
+    color: "white",
+  },
+
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: SPACING.screenPadding,
+  },
+
+  emptyTitle: {
+    marginTop: 8,
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 16,
+    color: COLORS.text,
+  },
+
+  emptyText: {
+    marginTop: 4,
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
+    color: COLORS.subtitle,
+    textAlign: "center",
   },
 
   card: {
@@ -193,5 +495,77 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
     fontSize: 12,
     color: COLORS.primary,
+  },
+
+  // STYLES UNTUK MODAL
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 20,
+    color: COLORS.text,
+  },
+  modalBody: {
+    marginBottom: 24,
+  },
+  modalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  modalLabel: {
+    fontFamily: "Poppins_500Medium",
+    fontSize: 14,
+    color: COLORS.subtitle,
+  },
+  modalValue: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 16,
+  },
+  modalDesc: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 12,
+    color: COLORS.subtitle,
+    textAlign: "center",
+    fontStyle: "italic",
+  },
+  modalConnectButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: SPACING.buttonRadius,
+    alignItems: "center",
+  },
+  modalConnectButtonText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
+    color: "white",
   },
 });

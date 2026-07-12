@@ -10,12 +10,12 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS, SPACING, NAV_ITEMS } from "./theme";
 
-const BottomNav = ({ state, navigation }) => {
+const BottomNav = ({ state, navigation, items = NAV_ITEMS }) => {
   const activeRouteName = state.routes[state.index].name;
 
   return (
     <View style={styles.bottomNav}>
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const isActive = activeRouteName === item.route;
 
         return (
