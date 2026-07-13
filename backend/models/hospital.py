@@ -10,3 +10,4 @@ class Hospital(db.Model):
 
     # Relationships
     blood_requests = relationship('BloodRequest', backref='hospital', lazy=True)
+    blood_inventory = relationship('BloodInventory', backref='hospital', lazy=True)

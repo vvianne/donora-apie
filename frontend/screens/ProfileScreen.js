@@ -539,7 +539,13 @@ const ProfileScreen = ({ navigation }) => {
       >
         {/* ============== HEADER ============== */}
         <Text style={styles.pageTitle}>
-          {role === "hospital" ? "Hospital Profile" : role === "donor" ? "Donor Profile" : "Profile"}
+          {role === "hospital"
+            ? "Hospital Profile"
+            : role === "blood_bank"
+              ? "Blood Bank Profile"
+              : role === "donor"
+                ? "Donor Profile"
+                : "Profile"}
         </Text>
 
         {/* ============== ROLE-SPECIFIC CARD ============== */}
@@ -551,7 +557,11 @@ const ProfileScreen = ({ navigation }) => {
 
         {/* ============== PERSONAL INFORMATION ============== */}
         <Text style={styles.sectionTitle}>
-          {role === "hospital" ? "Hospital Information" : "Personal Information"}
+          {role === "hospital"
+            ? "Hospital Information"
+            : role === "blood_bank"
+              ? "Blood Bank Information"
+              : "Personal Information"}
         </Text>
 
         <View style={styles.infoCard}>

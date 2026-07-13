@@ -75,12 +75,15 @@ const RequestsScreen = () => {
     quantity: "1",
   });
   const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState("");
+  const [error, setError] = useState("");
 
   // State baru khusus untuk mengontrol pop-up Modal dalam aplikasi
   const [selectedRequest, setSelectedRequest] = useState(null);
   const navigation = useNavigation();
 
   useEffect(() => {
+    fetchRequests();
     const unsubscribe = navigation.addListener("focus", fetchRequests);
     const interval = setInterval(fetchRequests, 5000);
     return () => { unsubscribe(); clearInterval(interval); };
@@ -88,12 +91,20 @@ const RequestsScreen = () => {
 
   const fetchRequests = async () => {
     try {
+      setError("");
       const token = await AsyncStorage.getItem("access_token");
-      const response = await api.get("/hospital/request", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const headers = { Authorization: `Bearer ${token}` };
+      const profileResponse = await api.get("/auth/profile", { headers });
+      const authenticatedRole = String(
+        profileResponse.data?.data?.role || "",
+      ).toLowerCase();
+      const endpoint =
+        authenticatedRole === "blood_bank"
+          ? "/blood_bank/requests"
+          : "/hospital/request";
+      const response = await api.get(endpoint, { headers });
+
+      setRole(authenticatedRole);
       const normalizedRequests = (response.data.data || []).map((item) => ({
         ...item,
         status: normalizeStatus(item.status),
@@ -101,10 +112,14 @@ const RequestsScreen = () => {
       setRequests(normalizedRequests);
     } catch (err) {
       console.log(err.response?.data || err.message);
+      setRequests([]);
+      setError(err.response?.data?.message || "Could not load requests.");
     }
   };
 
   const handleCreateRequest = async () => {
+    if (loading || role !== "hospital") return;
+
     if (!form.blood_type || !form.quantity) {
       Alert.alert(
         "Missing details",
@@ -145,6 +160,8 @@ const RequestsScreen = () => {
   };
 
   const updateResponseStatus = async (responseId, status) => {
+    if (role !== "hospital") return;
+
     try {
       const token = await AsyncStorage.getItem("access_token");
       await api.patch(
@@ -164,44 +181,64 @@ const RequestsScreen = () => {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
       <View style={styles.header}>
-        <Text style={styles.pageTitle}>Requests</Text>
+        <Text style={styles.pageTitle}>
+          {role === "blood_bank" ? "Incoming Requests" : "Requests"}
+        </Text>
       </View>
 
-      <View style={styles.formCard}>
-        <Text style={styles.formTitle}>Create Emergency Request</Text>
-        <View style={styles.pickerWrapper}>
-          <Picker
-            selectedValue={form.blood_type}
-            onValueChange={(value) => setForm({ ...form, blood_type: value })}
-            style={styles.picker}
-            dropdownIconColor={COLORS.text}
+      {role === "hospital" && (
+        <View style={styles.formCard}>
+          <Text style={styles.formTitle}>Create Emergency Request</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker
+              selectedValue={form.blood_type}
+              onValueChange={(value) => setForm({ ...form, blood_type: value })}
+              style={styles.picker}
+              dropdownIconColor={COLORS.text}
+            >
+              <Picker.Item label="Select blood type" value="" />
+              {BLOOD_TYPES.map((type) => (
+                <Picker.Item key={type} label={type} value={type} />
+              ))}
+            </Picker>
+          </View>
+          <TextInput
+            style={styles.input}
+            value={form.quantity}
+            onChangeText={(value) => setForm({ ...form, quantity: value })}
+            placeholder="Quantity"
+            keyboardType="numeric"
+          />
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleCreateRequest}
+            disabled={loading}
           >
-            <Picker.Item label="Select blood type" value="" />
-            {BLOOD_TYPES.map((type) => (
-              <Picker.Item key={type} label={type} value={type} />
-            ))}
-          </Picker>
+            <Text style={styles.submitButtonText}>
+              {loading ? "Creating..." : "Submit Request"}
+            </Text>
+          </TouchableOpacity>
         </View>
-        <TextInput
-          style={styles.input}
-          value={form.quantity}
-          onChangeText={(value) => setForm({ ...form, quantity: value })}
-          placeholder="Quantity"
-          keyboardType="numeric"
-        />
-        <TouchableOpacity
-          style={styles.submitButton}
-          onPress={handleCreateRequest}
-          disabled={loading}
-        >
-          <Text style={styles.submitButtonText}>
-            {loading ? "Creating..." : "Submit Request"}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      )}
 
-      {requests.length === 0 ? (
-        <EmptyState icon="clipboard-outline" title="No requests yet" message="Create your first emergency request when blood is needed." />
+      {!!error ? (
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Requests unavailable"
+          message={error}
+        />
+      ) : requests.length === 0 ? (
+        <EmptyState
+          icon="clipboard-outline"
+          title={
+            role === "blood_bank" ? "No incoming requests" : "No requests yet"
+          }
+          message={
+            role === "blood_bank"
+              ? "New hospital blood requests will appear here."
+              : "Create your first emergency request when blood is needed."
+          }
+        />
       ) : (
         <FlatList
           data={requests}
@@ -249,38 +286,71 @@ const RequestsScreen = () => {
                   </Text>
                 </View>
 
-                <View style={styles.modalDivider} />
-
-                <Text style={styles.modalDesc}>Donor responses</Text>
-                {(selectedRequest.responses || []).length === 0 ? (
-                  <Text style={styles.modalDesc}>No donor has responded yet.</Text>
-                ) : (
-                  selectedRequest.responses.map((response) => (
-                    <View key={response.id} style={styles.modalRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.modalValue}>{response.donor_name}</Text>
-                        <Text style={styles.modalLabel}>{response.blood_type || "-"}</Text>
-                        <StatusBadge status={response.status} />
-                      </View>
-                      {String(response.status).toLowerCase() === "pending" && (
-                        <View>
-                          <TouchableOpacity onPress={() => updateResponseStatus(response.id, "approved")}>
-                            <Text style={styles.modalConnectButtonText}>Approve</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={() => updateResponseStatus(response.id, "rejected")}>
-                            <Text style={[styles.modalConnectButtonText, { color: COLORS.primary }]}>Reject</Text>
-                          </TouchableOpacity>
+                {role === "hospital" && (
+                  <>
+                    <View style={styles.modalDivider} />
+                    <Text style={styles.modalDesc}>Donor responses</Text>
+                    {(selectedRequest.responses || []).length === 0 ? (
+                      <Text style={styles.modalDesc}>
+                        No donor has responded yet.
+                      </Text>
+                    ) : (
+                      selectedRequest.responses.map((response) => (
+                        <View key={response.id} style={styles.modalRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.modalValue}>
+                              {response.donor_name}
+                            </Text>
+                            <Text style={styles.modalLabel}>
+                              {response.blood_type || "-"}
+                            </Text>
+                            <StatusBadge status={response.status} />
+                          </View>
+                          {String(response.status).toLowerCase() ===
+                            "pending" && (
+                            <View>
+                              <TouchableOpacity
+                                onPress={() =>
+                                  updateResponseStatus(response.id, "approved")
+                                }
+                              >
+                                <Text style={styles.modalConnectButtonText}>
+                                  Approve
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() =>
+                                  updateResponseStatus(response.id, "rejected")
+                                }
+                              >
+                                <Text
+                                  style={[
+                                    styles.modalConnectButtonText,
+                                    { color: COLORS.primary },
+                                  ]}
+                                >
+                                  Reject
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          {["approved", "transporting"].includes(
+                            String(response.status).toLowerCase(),
+                          ) && (
+                            <TouchableOpacity
+                              onPress={() =>
+                                updateResponseStatus(response.id, "completed")
+                              }
+                            >
+                              <Text style={styles.modalConnectButtonText}>
+                                Mark Completed
+                              </Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
-                      )}
-                      {["approved", "transporting"].includes(
-                        String(response.status).toLowerCase(),
-                      ) && (
-                        <TouchableOpacity onPress={() => updateResponseStatus(response.id, "completed")}>
-                          <Text style={styles.modalConnectButtonText}>Mark Completed</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))
+                      ))
+                    )}
+                  </>
                 )}
               </View>
             )}

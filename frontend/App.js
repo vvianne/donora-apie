@@ -17,13 +17,13 @@ import LoginScreen from "./screens/auth/LoginScreen";
 import RegisterScreen from "./screens/auth/RegisterScreen";
 import DonorDashboard from "./screens/donor/DonorDashboard";
 import HospitalDashboard from "./screens/hospital/HospitalDashboard";
-import BloodBankDashboard from "./screens/BloodBankDashboard";
 import TransportationDashboard from "./screens/TransportationDashboard";
 import InventoryScreen from "./screens/InventoryScreen";
 import RequestsScreen from "./screens/RequestsScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import DonorNavigator from "./navigation/DonorNavigator";
 import HospitalNavigator from "./navigation/HospitalNavigator";
+import BloodBankNavigator from "./navigation/BloodBankNavigator";
 
 const Stack = createStackNavigator();
 
@@ -65,7 +65,7 @@ const App = () => {
           />
           <Stack.Screen
             name="BloodBankDashboard"
-            component={BloodBankDashboard}
+            component={BloodBankNavigator}
             options={{ headerShown: false }}
           />
           <Stack.Screen

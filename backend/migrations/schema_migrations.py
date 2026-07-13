@@ -31,6 +31,102 @@ def ensure_donation_history_columns():
         db.session.commit()
 
 
+def ensure_inventory_ownership_schema():
+    """Add Hospital ownership while preserving existing Blood Bank rows."""
+    inspector = inspect(db.engine)
+    if 'blood_inventory' not in inspector.get_table_names():
+        return
+
+    existing = {
+        column['name']: column for column in inspector.get_columns('blood_inventory')
+    }
+    if 'hospital_id' not in existing:
+        db.session.execute(text(
+            'ALTER TABLE blood_inventory ADD COLUMN hospital_id INTEGER NULL'
+        ))
+        db.session.commit()
+
+    inspector = inspect(db.engine)
+    existing = {
+        column['name']: column for column in inspector.get_columns('blood_inventory')
+    }
+    check_names = {
+        check.get('name')
+        for check in inspector.get_check_constraints('blood_inventory')
+    }
+
+    # SQLite cannot alter nullability or add table constraints in place. Rebuild
+    # only legacy tables; freshly-created databases already have the new schema.
+    if db.engine.dialect.name == 'sqlite' and (
+        not existing['blood_bank_id']['nullable']
+        or 'ck_blood_inventory_exactly_one_owner' not in check_names
+    ):
+        db.session.execute(text('PRAGMA foreign_keys=OFF'))
+        db.session.execute(text(
+            'CREATE TABLE blood_inventory_new ('
+            'id INTEGER NOT NULL PRIMARY KEY, '
+            'hospital_id INTEGER NULL, '
+            'blood_bank_id INTEGER NULL, '
+            'blood_type VARCHAR(10) NOT NULL, '
+            'quantity INTEGER NOT NULL, '
+            'CONSTRAINT ck_blood_inventory_exactly_one_owner CHECK ('
+            '(hospital_id IS NOT NULL AND blood_bank_id IS NULL) OR '
+            '(hospital_id IS NULL AND blood_bank_id IS NOT NULL)), '
+            'FOREIGN KEY(hospital_id) REFERENCES hospitals (id), '
+            'FOREIGN KEY(blood_bank_id) REFERENCES blood_banks (id))'
+        ))
+        db.session.execute(text(
+            'INSERT INTO blood_inventory_new '
+            '(id, hospital_id, blood_bank_id, blood_type, quantity) '
+            'SELECT id, hospital_id, blood_bank_id, blood_type, quantity '
+            'FROM blood_inventory'
+        ))
+        db.session.execute(text('DROP TABLE blood_inventory'))
+        db.session.execute(text(
+            'ALTER TABLE blood_inventory_new RENAME TO blood_inventory'
+        ))
+        db.session.commit()
+        db.session.execute(text('PRAGMA foreign_keys=ON'))
+        return
+
+    # The deployed application uses MySQL. Existing blood_bank_id columns were
+    # NOT NULL, so make that owner optional before Hospital inventory is written.
+    if db.engine.dialect.name == 'mysql' and not existing['blood_bank_id']['nullable']:
+        db.session.execute(text(
+            'ALTER TABLE blood_inventory MODIFY COLUMN blood_bank_id INTEGER NULL'
+        ))
+        db.session.commit()
+
+    inspector = inspect(db.engine)
+    foreign_key_columns = {
+        column
+        for foreign_key in inspector.get_foreign_keys('blood_inventory')
+        for column in foreign_key.get('constrained_columns', [])
+    }
+    if db.engine.dialect.name == 'mysql' and 'hospital_id' not in foreign_key_columns:
+        db.session.execute(text(
+            'ALTER TABLE blood_inventory '
+            'ADD CONSTRAINT fk_blood_inventory_hospital '
+            'FOREIGN KEY (hospital_id) REFERENCES hospitals (id)'
+        ))
+        db.session.commit()
+
+    check_names = {
+        check.get('name')
+        for check in inspect(db.engine).get_check_constraints('blood_inventory')
+    }
+    if (
+        db.engine.dialect.name == 'mysql'
+        and 'ck_blood_inventory_exactly_one_owner' not in check_names
+    ):
+        db.session.execute(text(
+            'ALTER TABLE blood_inventory '
+            'ADD CONSTRAINT ck_blood_inventory_exactly_one_owner CHECK ('
+            '(hospital_id IS NOT NULL AND blood_bank_id IS NULL) OR '
+            '(hospital_id IS NULL AND blood_bank_id IS NOT NULL))'
+        ))
+        db.session.commit()
+
 def backfill_accepted_donations():
     """Repair responses written before donor acceptance became atomic completion."""
     from models.donation_history import DonationHistory

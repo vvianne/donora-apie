@@ -18,6 +18,7 @@ from controllers.notification_controller import notification_bp
 from config import Config
 from migrations.schema_migrations import (
     ensure_donation_history_columns,
+    ensure_inventory_ownership_schema,
     backfill_accepted_donations,
 )
 
@@ -42,6 +43,7 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        ensure_inventory_ownership_schema()
         ensure_donation_history_columns()
         backfill_accepted_donations()
 

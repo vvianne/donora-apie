@@ -52,7 +52,7 @@ const HospitalDashboard = ({ navigation }) => {
   });
   const [profile, setProfile] = useState({ full_name: "Hospital" });
   const [requests, setRequests] = useState([]);
-  const [inventory, setInventory] = useState([]);
+  const [inventoryTotals, setInventoryTotals] = useState({});
   const [form, setForm] = useState({
     blood_type: "O+",
     quantity: "1",
@@ -61,6 +61,7 @@ const HospitalDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    loadHospitalData();
     const unsubscribe = navigation.addListener("focus", loadHospitalData);
     const interval = setInterval(loadHospitalData, 5000);
     return () => { unsubscribe(); clearInterval(interval); };
@@ -83,7 +84,7 @@ const HospitalDashboard = ({ navigation }) => {
 
       setProfile(profileRes.data?.data || {});
       setRequests(requestsRes.data?.data || []);
-      setInventory(inventoryRes.data?.data || []);
+      setInventoryTotals(inventoryRes.data?.totals || {});
     } catch (err) {
       console.log(err.response?.data || err.message);
     }
@@ -130,12 +131,13 @@ const HospitalDashboard = ({ navigation }) => {
         String(item.status).toLowerCase(),
       ),
     ).length;
-    const completedToday = requests.filter(
-      (item) => String(item.status).toLowerCase() === "completed",
-    ).length;
+    const locationStock = Object.values(inventoryTotals).reduce(
+      (sum, quantity) => sum + Number(quantity || 0),
+      0,
+    );
 
-    return { totalRequests: total, open, completedToday };
-  }, [requests]);
+    return { totalRequests: total, open, locationStock };
+  }, [requests, inventoryTotals]);
 
   if (!fontsLoaded) return null;
 
@@ -209,8 +211,8 @@ const HospitalDashboard = ({ navigation }) => {
                 color={COLORS.success}
               />
             </View>
-            <Text style={styles.overviewNumber}>{overview.completedToday}</Text>
-            <Text style={styles.overviewLabel}>Completed Today</Text>
+            <Text style={styles.overviewNumber}>{overview.locationStock}</Text>
+            <Text style={styles.overviewLabel}>Location Stock</Text>
           </View>
         </View>
 
@@ -325,7 +327,7 @@ const HospitalDashboard = ({ navigation }) => {
                   <View style={styles.requestGridItem}>
                     <Text style={styles.requestGridLabel}>Inventory</Text>
                     <Text style={styles.requestGridValue}>
-                      {inventory.length}
+                      {overview.locationStock}
                     </Text>
                   </View>
                 </View>
