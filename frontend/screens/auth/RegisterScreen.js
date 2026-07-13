@@ -1,7 +1,16 @@
 import React, { useState } from "react";
-import { View, TextInput, Button, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
-import api from "../../services/api";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+} from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { Ionicons } from "@expo/vector-icons";
+import api from "../../services/api";
+import { COLORS, SHADOWS, SPACING } from "../../theme";
 
 const RegisterScreen = ({ navigation }) => {
   const [username, setUsername] = useState("");
@@ -29,72 +38,93 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
-      <Text style={styles.subtitle}>Join Donora and get started</Text>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.brandMark}>
+          <Ionicons name="heart" size={26} color="white" />
+        </View>
+        <Text style={styles.title}>Create your account</Text>
+        <Text style={styles.subtitle}>
+          Join a community built around helping others.
+        </Text>
+        <View style={styles.formCard}>
+          <Text style={styles.label}>Username</Text>
 
-      <TextInput
-        placeholder="Username"
-        style={styles.input}
-        value={username}
-        onChangeText={setUsername}
-      />
+          <TextInput
+            placeholder="Enter your username"
+            style={styles.input}
+            value={username}
+            onChangeText={setUsername}
+          />
 
-      <TextInput
-        placeholder="Password"
-        style={styles.input}
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            placeholder="Enter your password"
+            style={styles.input}
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
 
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={role}
-          onValueChange={setRole}
-          style={styles.picker}
-          dropdownIconColor="#D32F2F"
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={role}
+              onValueChange={setRole}
+              style={styles.picker}
+              dropdownIconColor="#D32F2F"
+            >
+              <Picker.Item label="Select Role" value="" color="#999" />
+              <Picker.Item label="Donor" value="donor" />
+              <Picker.Item label="Hospital" value="hospital" />
+              <Picker.Item label="Blood Bank" value="blood_bank" />
+              <Picker.Item label="Transportation" value="transportation" />
+            </Picker>
+          </View>
+
+          {(role === "hospital" || role === "blood_bank") && (
+            <>
+              <Text style={styles.label}>Hospital Name</Text>
+              <TextInput
+                placeholder={
+                  role === "hospital"
+                    ? "Enter Hospital name"
+                    : "Enter Blood Bank name"
+                }
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+              />
+
+              <Text style={styles.label}>Location</Text>
+              <TextInput
+                placeholder="Enter location"
+                style={styles.input}
+                value={location}
+                onChangeText={setLocation}
+              />
+            </>
+          )}
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <TouchableOpacity
+            style={styles.registerButton}
+            onPress={handleRegister}
+          >
+            <Text style={styles.buttonText}>Register</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.loginLink}
+          onPress={() => navigation.navigate("Login")}
         >
-          <Picker.Item label="Select Role" value="" color="#999" />
-          <Picker.Item label="Donor" value="donor" />
-          <Picker.Item label="Hospital" value="hospital" />
-          <Picker.Item label="Blood Bank" value="blood_bank" />
-          <Picker.Item label="Transportation" value="transportation" />
-        </Picker>
+          <Text style={styles.loginText}>
+            Already have an account?{" "}
+            <Text style={styles.loginStrong}>Login</Text>
+          </Text>
+        </TouchableOpacity>
       </View>
-
-      {(role === "hospital" || role === "blood_bank") && (
-        <>
-          <TextInput
-            placeholder={
-              role === "hospital" ? "Hospital Name" : "Blood Bank Name"
-            }
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-          />
-
-          <TextInput
-            placeholder="Location"
-            style={styles.input}
-            value={location}
-            onChangeText={setLocation}
-          />
-        </>
-      )}
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
-        <Text style={styles.buttonText}>Register</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.loginLink}
-        onPress={() => navigation.navigate("Login")}
-      >
-        <Text style={styles.loginText}>Already have an account? Login</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -102,45 +132,83 @@ const RegisterScreen = ({ navigation }) => {
 export default RegisterScreen;
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
   container: {
     flexGrow: 1,
     justifyContent: "center",
-    paddingHorizontal: 24,
     paddingVertical: 32,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.background,
+  },
+  content: {
+    width: "100%",
+    maxWidth: 440,
+    alignSelf: "center",
+    paddingHorizontal: SPACING.screenPadding,
+  },
+  brandMark: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginBottom: 18,
+    ...SHADOWS.card,
   },
 
   title: {
     fontSize: 32,
-    fontWeight: "bold",
+    fontFamily: "Poppins_700Bold",
+    color: COLORS.text,
     marginBottom: 8,
     textAlign: "center",
   },
 
   subtitle: {
     textAlign: "center",
-    color: "#666",
-    marginBottom: 30,
+    fontFamily: "Poppins_400Regular",
+    color: COLORS.subtitle,
+    marginBottom: 24,
+  },
+  formCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: SPACING.cardRadius,
+    padding: SPACING.cardPadding,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
+  },
+
+  label: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 13,
+    color: COLORS.text,
+    marginBottom: 8,
   },
 
   input: {
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderColor: COLORS.border,
+    borderRadius: SPACING.inputRadius,
+    paddingHorizontal: 16,
+    height: 52,
     marginBottom: 16,
+    backgroundColor: COLORS.background,
+    fontFamily: "Poppins_400Regular",
   },
 
   pickerContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
-    backgroundColor: "#FAFAFA",
+    borderColor: COLORS.border,
+    borderRadius: SPACING.inputRadius,
+    backgroundColor: COLORS.background,
     marginBottom: 16,
-    marginLeft: 4,
     overflow: "hidden",
   },
 
@@ -152,17 +220,18 @@ const styles = StyleSheet.create({
   },
 
   registerButton: {
-    backgroundColor: "#D32F2F",
-    padding: 15,
-    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    height: 52,
+    justifyContent: "center",
+    borderRadius: SPACING.buttonRadius,
     alignItems: "center",
     marginTop: 8,
   },
 
   buttonText: {
     color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 15,
   },
 
   loginLink: {
@@ -171,12 +240,14 @@ const styles = StyleSheet.create({
   },
 
   loginText: {
-    color: "#D32F2F",
-    fontWeight: "600",
+    color: COLORS.subtitle,
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
   },
+  loginStrong: { color: COLORS.primary, fontFamily: "Poppins_600SemiBold" },
 
   error: {
-    color: "red",
+    color: COLORS.danger,
     marginBottom: 10,
     textAlign: "center",
   },

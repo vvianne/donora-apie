@@ -13,11 +13,15 @@ import {
   Switch,
   ActivityIndicator,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS, SPACING } from "../theme";
 import api from "../services/api";
+import { LoadingState } from "../components/ui";
+
+const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 // ============================================
 // PROFILE DATA — loaded from backend
@@ -66,8 +70,8 @@ const DonorCard = ({ data }) => {
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{data.location || "-"}</Text>
-          <Text style={styles.statLabel}>Location</Text>
+          <Text style={styles.statValue}>{data.role_details?.completed_donations || 0}</Text>
+          <Text style={styles.statLabel}>Donations</Text>
         </View>
       </View>
 
@@ -98,6 +102,18 @@ const HospitalCard = ({ data }) => (
     <View style={styles.infoRow}>
       <Ionicons name="location-outline" size={14} color={COLORS.subtitle} />
       <Text style={styles.infoText}>{data.location || "No location yet"}</Text>
+    </View>
+
+    <View style={styles.statsRow}>
+      <View style={styles.statItem}>
+        <Text style={styles.statValue}>{data.role_details?.active_requests || 0}</Text>
+        <Text style={styles.statLabel}>Active Requests</Text>
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.statItem}>
+        <Text style={styles.statValue}>{data.role_details?.completed_requests || 0}</Text>
+        <Text style={styles.statLabel}>Completed</Text>
+      </View>
     </View>
 
     <View style={styles.infoRow}>
@@ -207,7 +223,7 @@ const SettingsRow = ({ icon, label, danger, onPress }) => (
 // ============================================
 // COMPONENT
 // ============================================
-const ProfileScreen = () => {
+const ProfileScreen = ({ navigation }) => {
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -251,8 +267,9 @@ const ProfileScreen = () => {
   };
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    const unsubscribe = navigation.addListener("focus", loadProfile);
+    return unsubscribe;
+  }, [navigation]);
 
   const saveProfile = async () => {
     try {
@@ -299,6 +316,17 @@ const ProfileScreen = () => {
     setActiveModal(null);
   };
 
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem("access_token");
+    } catch (error) {
+      console.log("Logout failed", error);
+    } finally {
+      closeModal();
+      navigation?.navigate("Login");
+    }
+  };
+
   const renderModalContent = () => {
     switch (activeModal) {
       case "editProfile":
@@ -329,15 +357,21 @@ const ProfileScreen = () => {
               keyboardType="phone-pad"
             />
 
-            <TextInput
-              style={styles.modalInput}
-              value={profileForm.bloodType}
-              onChangeText={(value) =>
-                setProfileForm((prev) => ({ ...prev, bloodType: value }))
-              }
-              placeholder="Blood Type"
-              autoCapitalize="characters"
-            />
+            {role === "donor" && <View style={styles.pickerWrapper}>
+              <Picker
+                selectedValue={profileForm.bloodType}
+                onValueChange={(value) =>
+                  setProfileForm((prev) => ({ ...prev, bloodType: value }))
+                }
+                style={styles.picker}
+                dropdownIconColor={COLORS.text}
+              >
+                <Picker.Item label="Select blood type" value="" />
+                {BLOOD_TYPES.map((type) => (
+                  <Picker.Item key={type} label={type} value={type} />
+                ))}
+              </Picker>
+            </View>}
 
             <TextInput
               style={styles.modalInput}
@@ -481,7 +515,7 @@ const ProfileScreen = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.primaryButton}
-                onPress={closeModal}
+                onPress={handleLogout}
               >
                 <Text style={styles.primaryButtonText}>Logout</Text>
               </TouchableOpacity>
@@ -504,25 +538,27 @@ const ProfileScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* ============== HEADER ============== */}
-        <Text style={styles.pageTitle}>Profile</Text>
+        <Text style={styles.pageTitle}>
+          {role === "hospital" ? "Hospital Profile" : role === "donor" ? "Donor Profile" : "Profile"}
+        </Text>
 
         {/* ============== ROLE-SPECIFIC CARD ============== */}
         {loading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
+          <LoadingState label="Loading your profile…" />
         ) : (
           <RoleCard role={role} data={profile} />
         )}
 
         {/* ============== PERSONAL INFORMATION ============== */}
-        <Text style={styles.sectionTitle}>Personal Information</Text>
+        <Text style={styles.sectionTitle}>
+          {role === "hospital" ? "Hospital Information" : "Personal Information"}
+        </Text>
 
         <View style={styles.infoCard}>
           <View style={styles.infoCardRow}>
             <Ionicons name="mail-outline" size={18} color={COLORS.subtitle} />
             <Text style={styles.infoCardText}>
-              {profile.username || "No email"}
+              {role === "hospital" ? `Account: ${profile.username || "-"}` : profile.username || "No username"}
             </Text>
           </View>
 
@@ -544,7 +580,11 @@ const ProfileScreen = () => {
               color={COLORS.subtitle}
             />
             <Text style={styles.infoCardText}>
-              Verification: {profile.verification_status || "verified"}
+              {role === "donor"
+                ? `Eligibility: ${profile.role_details?.eligibility_status || "unknown"}`
+                : role === "hospital"
+                  ? `Total emergency requests: ${profile.role_details?.total_requests || 0}`
+                  : `Verification: ${profile.verification_status || "verified"}`}
             </Text>
           </View>
         </View>
@@ -953,6 +993,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: "center",
     marginTop: 4,
   },

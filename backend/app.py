@@ -20,6 +20,10 @@ from controllers.transportation_controller import transportation_bp
 from controllers.notification_controller import notification_bp
 
 from config import Config
+from migrations.schema_migrations import (
+    ensure_donation_history_columns,
+    backfill_accepted_donations,
+)
 
 def create_app():
     app = Flask(__name__)
@@ -42,6 +46,8 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        ensure_donation_history_columns()
+        backfill_accepted_donations()
 
     return app
 

@@ -46,6 +46,11 @@ from database import db
 from models.user import User
 from models.hospital import Hospital
 from models.blood_bank import BloodBank
+from models.blood_request import BloodRequest
+from models.donation_history import DonationHistory
+from models.donor_response import DonorResponse
+from models.transportation_task import TransportationTask
+from sqlalchemy import func
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -80,12 +85,11 @@ def register():
             "message": "Invalid role."
         }), 400
 
-    if role in ["hospital", "blood_bank"]:
-        if not name or not location:
-            return jsonify({
-                "success": False,
-                "message": "Name and location are required."
-            }), 400
+    if role in ["hospital", "blood_bank"] and (not name or not location):
+        return jsonify({
+            "success": False,
+            "message": "Name and location are required."
+        }), 400
     
     
 
@@ -169,7 +173,45 @@ def get_profile():
     if not user:
         return jsonify({"success": False, "message": "User not found."}), 404
 
-    return jsonify({"success": True, "data": user.serialize()}), 200
+    payload = user.serialize()
+    role = user.role.lower()
+    if role == 'donor':
+        completed = DonationHistory.query.filter_by(donor_id=user.id).count()
+        payload['role_details'] = {
+            'completed_donations': completed,
+            'active_responses': DonorResponse.query.filter(
+                DonorResponse.donor_id == user.id,
+                func.lower(DonorResponse.status).notin_(('completed', 'cancelled', 'rejected')),
+            ).count(),
+            'eligibility_status': 'available' if user.available else 'unavailable',
+            'last_donation': (
+                DonationHistory.query.filter_by(donor_id=user.id)
+                .order_by(DonationHistory.id.desc()).first().donation_date
+                if completed else None
+            ),
+        }
+    elif role == 'hospital':
+        hospital = Hospital.query.filter_by(name=user.full_name, location=user.location).first()
+        requests = BloodRequest.query.filter_by(hospital_id=hospital.id) if hospital else None
+        payload['role_details'] = {
+            'hospital_id': hospital.id if hospital else None,
+            'total_requests': requests.count() if requests else 0,
+            'active_requests': requests.filter(func.lower(BloodRequest.status).in_(
+                ('pending', 'open', 'urgent', 'active', 'in_progress')
+            )).count() if requests else 0,
+            'completed_requests': requests.filter(func.lower(BloodRequest.status) == 'completed').count() if requests else 0,
+        }
+    elif role == 'blood_bank':
+        bank = BloodBank.query.filter_by(name=user.full_name, location=user.location).first()
+        payload['role_details'] = {'blood_bank_id': bank.id if bank else None}
+    elif role in ('transportation', 'transporter'):
+        payload['role_details'] = {
+            'assigned_tasks': TransportationTask.query.filter_by(transporter_id=user.id).count(),
+            'completed_tasks': TransportationTask.query.filter_by(
+                transporter_id=user.id, status='completed'
+            ).count(),
+        }
+    return jsonify({"success": True, "data": payload}), 200
 
 
 @auth_bp.route('/profile', methods=['PUT'])
@@ -213,6 +255,17 @@ def update_profile():
     if changed_fields:
         user.verification_status = 'pending'
 
+    if user.role.lower() == 'hospital':
+        entity = Hospital.query.filter_by(name=old_full_name, location=old_location).first()
+        if entity:
+            entity.name = user.full_name
+            entity.location = user.location or entity.location
+    elif user.role.lower() == 'blood_bank':
+        entity = BloodBank.query.filter_by(name=old_full_name, location=old_location).first()
+        if entity:
+            entity.name = user.full_name
+            entity.location = user.location or entity.location
+
     db.session.commit()
 
-    return jsonify({"success": True, "message": "Profile updated successfully.", "data": user.serialize()}), 200
+    return get_profile()

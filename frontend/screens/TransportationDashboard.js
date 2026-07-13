@@ -9,21 +9,14 @@ import {
   StatusBar,
   Platform,
   Modal,
+  Alert,
 } from "react-native";
-
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-
-import {
-  useFonts,
-  Poppins_400Regular,
-  Poppins_500Medium,
-  Poppins_600SemiBold,
-  Poppins_700Bold,
-} from "@expo-google-fonts/poppins";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS, SPACING } from "../theme";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
+import { EmptyState, LoadingState, StatusBadge } from "../components/ui";
 
 const STATUS_STYLES = {
   pending: { bg: "#FFF4E5", text: COLORS.warning, icon: "clock-outline" },
@@ -33,29 +26,24 @@ const STATUS_STYLES = {
 };
 
 const TransportationDashboard = ({ navigation }) => {
-  const [fontsLoaded] = useFonts({
-    Poppins_400Regular,
-    Poppins_500Medium,
-    Poppins_600SemiBold,
-    Poppins_700Bold,
-  });
-
   const [tasks, setTasks] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState({ full_name: "", location: "" });
   const [showMenu, setShowMenu] = useState(false);
+  const [error, setError] = useState("");
 
-  const fetchTasks = async () => {
+  const loadTasks = async () => {
     try {
+      setError("");
       const token = await AsyncStorage.getItem("access_token");
       const response = await api.get("/transportation/my-tasks", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setTasks(response.data.tasks || []);
-    } catch (error) {
-      console.log("Failed to fetch tasks:", error.response?.data || error.message);
+      setTasks(response.data?.tasks || []);
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to load transportation tasks.");
     } finally {
       setLoading(false);
     }
@@ -87,9 +75,12 @@ const TransportationDashboard = ({ navigation }) => {
   };
 
   useEffect(() => {
-    fetchTasks();
+    loadTasks();
     fetchProfile();
-  }, []);
+    const unsubscribe = navigation.addListener("focus", loadTasks);
+    const interval = setInterval(loadTasks, 5000);
+    return () => { unsubscribe(); clearInterval(interval); };
+  }, [navigation]);
 
   const updateTaskStatus = async (taskId, newStatus) => {
     try {
@@ -99,10 +90,10 @@ const TransportationDashboard = ({ navigation }) => {
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      fetchTasks();
+      await loadTasks();
       setShowDetailModal(false);
     } catch (error) {
-      console.log("Failed to update status:", error.response?.data || error.message);
+      Alert.alert("Error", error.response?.data?.message || "Unable to update task.");
     }
   };
 
@@ -110,8 +101,6 @@ const TransportationDashboard = ({ navigation }) => {
     setSelectedTask(task);
     setShowDetailModal(true);
   };
-
-  if (!fontsLoaded) return null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -163,21 +152,7 @@ const TransportationDashboard = ({ navigation }) => {
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Current Status</Text>
-                  <View
-                    style={[
-                      styles.statusPill,
-                      { backgroundColor: STATUS_STYLES[selectedTask.status]?.bg },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        { color: STATUS_STYLES[selectedTask.status]?.text },
-                      ]}
-                    >
-                      {selectedTask.status.replace("_", " ").toUpperCase()}
-                    </Text>
-                  </View>
+                  <StatusBadge status={selectedTask.status} />
                 </View>
 
                 <Text style={styles.actionTitle}>Update Status</Text>
@@ -267,6 +242,14 @@ const TransportationDashboard = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
+        {loading ? (
+          <LoadingState label="Loading assigned deliveries…" />
+        ) : !!error ? (
+          <TouchableOpacity style={styles.errorCard} onPress={loadTasks}>
+            <Text style={styles.errorText}>{error} Tap to retry.</Text>
+          </TouchableOpacity>
+        ) : null}
+
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryNumber}>{tasks.length}</Text>
@@ -290,87 +273,76 @@ const TransportationDashboard = ({ navigation }) => {
 
         <Text style={styles.sectionTitle}>Assigned Tasks</Text>
 
-        {loading ? (
-          <Text style={styles.loadingText}>Loading tasks...</Text>
-        ) : tasks.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons
-              name="truck-outline"
-              size={48}
-              color={COLORS.subtitle}
-            />
-            <Text style={styles.emptyText}>No tasks assigned</Text>
-          </View>
-        ) : (
-          tasks.map((task) => {
-            const statusStyle = STATUS_STYLES[task.status] || STATUS_STYLES.pending;
-            return (
-              <TouchableOpacity
-                key={task.id}
-                style={styles.taskCard}
-                onPress={() => handleTaskPress(task)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.taskHeader}>
-                  <View style={styles.taskHeaderLeft}>
-                    <Text style={styles.hospitalName}>{task.hospital_name}</Text>
-                    <Text style={styles.taskTime}>
-                      {new Date(task.created_at).toLocaleDateString()}
-                    </Text>
-                  </View>
-                  <View
-                    style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
-                  >
-                    <Ionicons
-                      name={statusStyle.icon}
-                      size={14}
-                      color={statusStyle.text}
-                    />
-                    <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                      {task.status.replace("_", " ")}
-                    </Text>
-                  </View>
-                </View>
+        {!loading && !error && tasks.length === 0 ? (
+          <EmptyState icon="car-outline" title="No assigned deliveries" message="New transport assignments will appear here." />
+        ) : null}
 
-                <View style={styles.taskDivider} />
-
-                <View style={styles.taskDetails}>
-                  <View style={styles.taskDetailItem}>
-                    <Ionicons
-                      name="location-outline"
-                      size={16}
-                      color={COLORS.subtitle}
-                    />
-                    <Text style={styles.taskDetailText}>{task.pickup_location}</Text>
-                  </View>
-                  <View style={styles.taskDetailItem}>
-                    <Ionicons
-                      name="navigate-outline"
-                      size={16}
-                      color={COLORS.subtitle}
-                    />
-                    <Text style={styles.taskDetailText}>{task.dropoff_location}</Text>
-                  </View>
+        {tasks.map((task) => {
+          const statusStyle = STATUS_STYLES[task.status] || STATUS_STYLES.pending;
+          return (
+            <TouchableOpacity
+              key={task.id}
+              style={styles.taskCard}
+              onPress={() => handleTaskPress(task)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.taskHeader}>
+                <View style={styles.taskHeaderLeft}>
+                  <Text style={styles.hospitalName}>{task.hospital_name}</Text>
+                  <Text style={styles.taskTime}>
+                    {new Date(task.created_at).toLocaleDateString()}
+                  </Text>
                 </View>
-
-                <View style={styles.taskFooter}>
-                  <View style={styles.bloodTypeBadge}>
-                    <Text style={styles.bloodTypeBadgeText}>
-                      {task.blood_type}
-                    </Text>
-                  </View>
-                  <Text style={styles.unitsText}>{task.units_required} units</Text>
+                <View
+                  style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
+                >
+                  <Ionicons
+                    name={statusStyle.icon}
+                    size={14}
+                    color={statusStyle.text}
+                  />
+                  <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                    {task.status.replace("_", " ")}
+                  </Text>
                 </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
+              </View>
+
+              <View style={styles.taskDivider} />
+
+              <View style={styles.taskDetails}>
+                <View style={styles.taskDetailItem}>
+                  <Ionicons
+                    name="location-outline"
+                    size={16}
+                    color={COLORS.subtitle}
+                  />
+                  <Text style={styles.taskDetailText}>{task.pickup_location}</Text>
+                </View>
+                <View style={styles.taskDetailItem}>
+                  <Ionicons
+                    name="navigate-outline"
+                    size={16}
+                    color={COLORS.subtitle}
+                  />
+                  <Text style={styles.taskDetailText}>{task.dropoff_location}</Text>
+                </View>
+              </View>
+
+              <View style={styles.taskFooter}>
+                <View style={styles.bloodTypeBadge}>
+                  <Text style={styles.bloodTypeBadgeText}>
+                    {task.blood_type}
+                  </Text>
+                </View>
+                <Text style={styles.unitsText}>{task.units_required} units</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
 };
-
-export default TransportationDashboard;
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -425,6 +397,20 @@ const styles = StyleSheet.create({
     color: COLORS.subtitle,
     marginTop: 2,
   },
+  errorCard: {
+    backgroundColor: COLORS.card,
+    padding: SPACING.cardPadding,
+    borderRadius: SPACING.cardRadius,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  errorText: {
+    color: COLORS.primary,
+    fontFamily: "Poppins_500Medium",
+    fontSize: 14,
+    textAlign: "center",
+  },
   summaryCard: {
     flexDirection: "row",
     backgroundColor: COLORS.card,
@@ -461,23 +447,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: COLORS.text,
     marginBottom: 14,
-  },
-  loadingText: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 14,
-    color: COLORS.subtitle,
-    textAlign: "center",
-    marginTop: 20,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 14,
-    color: COLORS.subtitle,
-    marginTop: 12,
   },
   taskCard: {
     backgroundColor: COLORS.card,
@@ -620,15 +589,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "white",
   },
-  statusPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusPillText: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 11,
-  },
   actionTitle: {
     fontFamily: "Poppins_600SemiBold",
     fontSize: 14,
@@ -671,3 +631,5 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
 });
+
+export default TransportationDashboard;

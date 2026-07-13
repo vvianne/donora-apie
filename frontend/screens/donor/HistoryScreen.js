@@ -13,6 +13,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS, SPACING } from "../../theme";
 import api from "../../services/api";
+import { EmptyState, LoadingState, StatusBadge } from "../../components/ui";
 
 const DEFAULT_PROFILE = {
   username: "",
@@ -22,13 +23,12 @@ const DEFAULT_PROFILE = {
   location: "",
 };
 
-const HistoryScreen = () => {
+const HistoryScreen = ({ navigation }) => {
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadData = async () => {
+  const loadData = async () => {
       try {
         const token = await AsyncStorage.getItem("access_token");
         if (!token) {
@@ -57,10 +57,12 @@ const HistoryScreen = () => {
       } finally {
         setLoading(false);
       }
-    };
+  };
 
-    loadData();
-  }, []);
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", loadData);
+    return unsubscribe;
+  }, [navigation]);
 
   const summary = {
     totalDonations: donations.length,
@@ -137,18 +139,9 @@ const HistoryScreen = () => {
         <Text style={styles.sectionTitle}>Donation History</Text>
 
         {loading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
+          <LoadingState label="Loading donation history…" />
         ) : donations.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons
-              name="folder-open-outline"
-              size={28}
-              color={COLORS.subtitle}
-            />
-            <Text style={styles.emptyStateText}>No donation records yet.</Text>
-          </View>
+          <EmptyState icon="heart-outline" title="No donation history yet" message="Your first donation can make a meaningful difference." />
         ) : (
           <View style={{ marginBottom: SPACING.sectionGap }}>
             {donations.map((item) => (
@@ -168,7 +161,8 @@ const HistoryScreen = () => {
                   </View>
 
                   <Text style={styles.historyPlace}>
-                    {item.place ||
+                    {item.hospital_name ||
+                      item.place ||
                       item.location ||
                       profile.location ||
                       "Recorded donation"}
@@ -178,9 +172,7 @@ const HistoryScreen = () => {
                   </Text>
                 </View>
 
-                <View style={styles.statusPill}>
-                  <Text style={styles.statusPillText}>Completed</Text>
-                </View>
+                <StatusBadge status={item.status || "completed"} />
               </View>
             ))}
           </View>

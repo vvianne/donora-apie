@@ -5,6 +5,7 @@ from models.transportation_task import TransportationTask
 from models.donor_response import DonorResponse
 from models.user import User
 from models.hospital import Hospital
+from services.blood_request_workflow import transition_response
 
 transportation_bp = Blueprint('transportation', __name__)
 
@@ -29,7 +30,7 @@ def assign_transport():
 
     # Verify transporter
     transporter = User.query.get(transporter_id)
-    if not transporter or transporter.role != 'transportation':
+    if not transporter or transporter.role.lower() not in ('transporter', 'transportation'):
         return jsonify({'message': 'Invalid transporter'}), 400
 
     # Verify donor response
@@ -46,7 +47,7 @@ def assign_transport():
     )
     
     # Update donor response status
-    donor_response.status = 'transporting'
+    transition_response(donor_response, 'transporting')
 
     db.session.add(new_task)
     db.session.commit()
@@ -77,7 +78,7 @@ def get_my_tasks():
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
-    if not user or user.role != 'transportation':
+    if not user or user.role.lower() not in ('transporter', 'transportation'):
         return jsonify({'message': 'Unauthorized. Must be a transporter'}), 403
 
     tasks = TransportationTask.query.filter_by(transporter_id=user_id).all()
@@ -121,7 +122,7 @@ def update_task_status(task_id):
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
-    if not user or user.role != 'transportation':
+    if not user or user.role.lower() not in ('transporter', 'transportation'):
         return jsonify({'message': 'Unauthorized. Must be a transporter'}), 403
 
     data = request.get_json()
@@ -142,11 +143,14 @@ def update_task_status(task_id):
     if notes:
         task.notes = notes
 
-    # If completed, might update donor response
     if new_status == 'completed':
         donor_response = DonorResponse.query.get(task.donor_response_id)
         if donor_response:
-            donor_response.status = 'completed'
+            transition_response(donor_response, 'completed')
+    elif new_status == 'cancelled':
+        donor_response = DonorResponse.query.get(task.donor_response_id)
+        if donor_response:
+            transition_response(donor_response, 'cancelled')
 
     db.session.commit()
 

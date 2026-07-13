@@ -9,15 +9,43 @@ export const COLORS = {
   text: "#1D2939",
   subtitle: "#667085",
   border: "#EAECF0",
+  surfaceMuted: "#F2F4F7",
+  info: "#2E90FA",
+  danger: "#D92D20",
 };
 
 export const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
   screenPadding: 24,
   sectionGap: 24,
   cardPadding: 20,
-  cardRadius: 24,
-  buttonRadius: 18,
-  inputRadius: 16,
+  cardRadius: 20,
+  buttonRadius: 14,
+  inputRadius: 14,
+};
+
+export const SHADOWS = {
+  card: {
+    shadowColor: "#101828",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+};
+
+export const STATUS_COLORS = {
+  pending: { background: "#FFF7E6", foreground: "#B54708", dot: "#F79009" },
+  approved: { background: "#EFF4FF", foreground: "#175CD3", dot: "#2E90FA" },
+  in_progress: { background: "#EFF8FF", foreground: "#026AA2", dot: "#0BA5EC" },
+  transporting: { background: "#F4F3FF", foreground: "#5925DC", dot: "#7F56D9" },
+  completed: { background: "#ECFDF3", foreground: "#027A48", dot: "#12B76A" },
+  rejected: { background: "#FEF3F2", foreground: "#B42318", dot: "#F04438" },
+  cancelled: { background: "#F2F4F7", foreground: "#475467", dot: "#98A2B3" },
 };
 
 // Single source of truth for bottom navigation items.

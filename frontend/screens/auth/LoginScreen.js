@@ -5,9 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  SafeAreaView,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import api from "../../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { COLORS, SHADOWS, SPACING } from "../../theme";
 
 const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState("");
@@ -62,38 +65,46 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Donora</Text>
-      <Text style={styles.subtitle}>Sign in to continue</Text>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+      <View style={styles.brandMark}><Ionicons name="water" size={30} color="white" /></View>
+      <Text style={styles.title}>Welcome back</Text>
+      <Text style={styles.subtitle}>Sign in to continue making a difference.</Text>
+
+      <View style={styles.formCard}>
+      <Text style={styles.label}>Username</Text>
 
       <TextInput
-        placeholder="Username"
+        placeholder="Enter your username"
         style={styles.input}
         value={username}
         onChangeText={setUsername}
       />
 
+      <Text style={styles.label}>Password</Text>
       <TextInput
-        placeholder="Password"
+        placeholder="Enter your password"
         style={styles.input}
         secureTextEntry
         value={password}
         onChangeText={setPassword}
       />
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <View style={styles.errorBox}><Ionicons name="alert-circle" size={16} color={COLORS.danger} /><Text style={styles.error}>{error}</Text></View> : null}
 
       <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Login</Text>
+        <Text style={styles.buttonText}>Sign In</Text>
       </TouchableOpacity>
+      </View>
 
       <TouchableOpacity
         style={styles.registerButton}
         onPress={() => navigation.navigate("Register")}
       >
-        <Text style={styles.registerText}>Don't have an account? Register</Text>
+        <Text style={styles.registerText}>New to Donora? <Text style={styles.registerStrong}>Create account</Text></Text>
       </TouchableOpacity>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
@@ -103,44 +114,64 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
-    paddingHorizontal: 24,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.background,
+  },
+  content: {
+    width: "100%",
+    maxWidth: 440,
+    alignSelf: "center",
+    paddingHorizontal: SPACING.screenPadding,
+  },
+  brandMark: {
+    width: 60, height: 60, borderRadius: 20, backgroundColor: COLORS.primary,
+    alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 20,
+    ...SHADOWS.card,
   },
 
   title: {
     fontSize: 32,
-    fontWeight: "bold",
-    marginBottom: 8,
+    fontFamily: "Poppins_700Bold",
+    color: COLORS.text,
+    marginBottom: 6,
     textAlign: "center",
   },
 
   subtitle: {
     textAlign: "center",
-    color: "#666",
-    marginBottom: 30,
+    fontFamily: "Poppins_400Regular",
+    color: COLORS.subtitle,
+    marginBottom: 24,
+  },
+  formCard: {
+    backgroundColor: COLORS.card, borderRadius: SPACING.cardRadius, padding: SPACING.cardPadding,
+    borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.card,
+  },
+  label: {
+    fontFamily: "Poppins_600SemiBold", fontSize: 13, color: COLORS.text, marginBottom: 8,
   },
 
   input: {
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderColor: COLORS.border,
+    borderRadius: SPACING.inputRadius,
+    paddingHorizontal: 16,
+    height: 52,
     marginBottom: 16,
+    backgroundColor: COLORS.background,
+    fontFamily: "Poppins_400Regular",
   },
 
   loginButton: {
-    backgroundColor: "#D32F2F",
-    padding: 15,
-    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    height: 52,
+    justifyContent: "center",
+    borderRadius: SPACING.buttonRadius,
     alignItems: "center",
     marginTop: 8,
   },
 
   buttonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
+    color: "#fff", fontFamily: "Poppins_600SemiBold", fontSize: 15,
   },
 
   registerButton: {
@@ -149,13 +180,12 @@ const styles = StyleSheet.create({
   },
 
   registerText: {
-    color: "#D32F2F",
-    fontWeight: "600",
+    color: COLORS.subtitle, fontFamily: "Poppins_400Regular", fontSize: 13,
   },
+  registerStrong: { color: COLORS.primary, fontFamily: "Poppins_600SemiBold" },
 
   error: {
-    color: "red",
-    marginBottom: 10,
-    textAlign: "center",
+    color: COLORS.danger, fontFamily: "Poppins_500Medium", fontSize: 12, flex: 1,
   },
+  errorBox: { flexDirection: "row", gap: 8, backgroundColor: "#FEF3F2", borderRadius: 12, padding: 12, marginBottom: 12 },
 });
